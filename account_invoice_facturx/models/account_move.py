@@ -72,14 +72,12 @@ class AccountMove(models.Model):
         trade_contact = etree.SubElement(parent_node, ns["ram"] + "DefinedTradeContact")
         contact_name = etree.SubElement(trade_contact, ns["ram"] + "PersonName")
         contact_name.text = partner.name
-        department = self._cii_trade_contact_department_name(partner)
-        if department:
+        if department := self._cii_trade_contact_department_name(partner):
             department_name = etree.SubElement(
                 trade_contact, ns["ram"] + "DepartmentName"
             )
             department_name.text = department
-        phone = partner.phone or partner.mobile
-        if phone:
+        if phone := partner.phone or partner.mobile:
             phone_node = etree.SubElement(
                 trade_contact, ns["ram"] + "TelephoneUniversalCommunication"
             )
@@ -100,7 +98,7 @@ class AccountMove(models.Model):
     ):
         date_node = etree.SubElement(parent_node, ns["ram"] + node_name)
         date_node_str = etree.SubElement(
-            date_node, ns[date_ns_type] + "DateTimeString", format="102"
+            date_node, f"{ns[date_ns_type]}DateTimeString", format="102"
         )
         # 102 = format YYYYMMDD
         date_node_str.text = date_datetime.strftime("%Y%m%d")
@@ -119,17 +117,14 @@ class AccountMove(models.Model):
         elif ns["level"] == "extended":
             urn = "urn:cen.eu:en16931:2017#conformant#" "urn:factur-x.eu:1p0:extended"
         else:
-            urn = "urn:factur-x.eu:1p0:%s" % ns["level"]
+            urn = f'urn:factur-x.eu:1p0:{ns["level"]}'
         ctx_param_id.text = urn
 
     def _cii_add_header_block(self, root, ns):
         self.ensure_one()
         header_doc = etree.SubElement(root, ns["rsm"] + "ExchangedDocument")
         header_doc_id = etree.SubElement(header_doc, ns["ram"] + "ID")
-        if self.state == "posted":
-            header_doc_id.text = self.name
-        else:
-            header_doc_id.text = self.state
+        header_doc_id.text = self.name if self.state == "posted" else self.state
         header_doc_typecode = etree.SubElement(header_doc, ns["ram"] + "TypeCode")
         if self.move_type == "out_invoice":
             header_doc_typecode.text = "380"
@@ -157,8 +152,7 @@ class AccountMove(models.Model):
 
     @api.model
     def _cii_add_party_identification(self, commercial_partner, parent_node, ns):
-        id_dict = self._cii_get_party_identification(commercial_partner)
-        if id_dict:
+        if id_dict := self._cii_get_party_identification(commercial_partner):
             party_identification = etree.SubElement(
                 parent_node, ns["ram"] + "SpecifiedLegalOrganization"
             )
@@ -179,8 +173,7 @@ class AccountMove(models.Model):
         trade_agreement = etree.SubElement(
             trade_transaction, ns["ram"] + "ApplicableHeaderTradeAgreement"
         )
-        buyer_ref = self._cii_trade_agreement_buyer_ref(self.partner_id)
-        if buyer_ref:
+        if buyer_ref := self._cii_trade_agreement_buyer_ref(self.partner_id):
             buyer_reference = etree.SubElement(
                 trade_agreement, ns["ram"] + "BuyerReference"
             )
@@ -400,9 +393,7 @@ class AccountMove(models.Model):
             )
 
     def _cii_line_applicable_trade_tax_block(self, tax_recordset, parent_node, ns):
-        tax = {}
-        if tax_recordset:
-            tax = ns["tax_speeddict"][tax_recordset.id]
+        tax = ns["tax_speeddict"][tax_recordset.id] if tax_recordset else {}
         self._cii_check_tax_required_info(tax)
         trade_tax = etree.SubElement(parent_node, ns["ram"] + "ApplicableTradeTax")
         trade_tax_typecode = etree.SubElement(trade_tax, ns["ram"] + "TypeCode")
@@ -421,9 +412,7 @@ class AccountMove(models.Model):
     ):
         if ns["level"] == "minimum":
             return
-        tax = {}
-        if tax_recordset:
-            tax = ns["tax_speeddict"][tax_recordset.id]
+        tax = ns["tax_speeddict"][tax_recordset.id] if tax_recordset else {}
         self._cii_check_tax_required_info(tax)
         trade_tax = etree.SubElement(parent_node, ns["ram"] + "ApplicableTradeTax")
         amount = etree.SubElement(trade_tax, ns["ram"] + "CalculatedAmount")
@@ -611,47 +600,47 @@ class AccountMove(models.Model):
             product_desc.text = iline.product_id.description_sale
 
     def _set_iline_product_attributes(self, iline, trade_product, ns):
-        if iline.product_id and ns["level"] in PROFILES_EN_UP:
-            product = iline.product_id
-            for attrib_val in product.product_template_attribute_value_ids:
-                attrib_value_rec = attrib_val.product_attribute_value_id
-                attrib_value = attrib_value_rec.name
-                attribute_name = attrib_value_rec.attribute_id.name
-                product_charact = etree.SubElement(
-                    trade_product, ns["ram"] + "ApplicableProductCharacteristic"
+        if not iline.product_id or ns["level"] not in PROFILES_EN_UP:
+            return
+        product = iline.product_id
+        for attrib_val in product.product_template_attribute_value_ids:
+            attrib_value_rec = attrib_val.product_attribute_value_id
+            attrib_value = attrib_value_rec.name
+            attribute_name = attrib_value_rec.attribute_id.name
+            product_charact = etree.SubElement(
+                trade_product, ns["ram"] + "ApplicableProductCharacteristic"
+            )
+            product_charact_desc = etree.SubElement(
+                product_charact, ns["ram"] + "Description"
+            )
+            product_charact_desc.text = attribute_name
+            product_charact_value = etree.SubElement(
+                product_charact, ns["ram"] + "Value"
+            )
+            product_charact_value.text = attrib_value
+        if hasattr(product, "hs_code_id") and product.type in ("product", "consu"):
+            if hs_code := product.get_hs_code_recursively():
+                product_classification = etree.SubElement(
+                    trade_product, ns["ram"] + "DesignatedProductClassification"
                 )
-                product_charact_desc = etree.SubElement(
-                    product_charact, ns["ram"] + "Description"
+                product_classification_code = etree.SubElement(
+                    product_classification, ns["ram"] + "ClassCode", listID="HS"
                 )
-                product_charact_desc.text = attribute_name
-                product_charact_value = etree.SubElement(
-                    product_charact, ns["ram"] + "Value"
-                )
-                product_charact_value.text = attrib_value
-            if hasattr(product, "hs_code_id") and product.type in ("product", "consu"):
-                hs_code = product.get_hs_code_recursively()
-                if hs_code:
-                    product_classification = etree.SubElement(
-                        trade_product, ns["ram"] + "DesignatedProductClassification"
-                    )
-                    product_classification_code = etree.SubElement(
-                        product_classification, ns["ram"] + "ClassCode", listID="HS"
-                    )
-                    product_classification_code.text = hs_code.local_code
-            # origin_country_id and hs_code_id are provided
-            # by the OCA module product_harmonized_system
-            if (
-                hasattr(product, "origin_country_id")
-                and product.type in ("product", "consu")
-                and product.origin_country_id
-            ):
-                origin_trade_country = etree.SubElement(
-                    trade_product, ns["ram"] + "OriginTradeCountry"
-                )
-                origin_trade_country_code = etree.SubElement(
-                    origin_trade_country, ns["ram"] + "ID"
-                )
-                origin_trade_country_code.text = product.origin_country_id.code
+                product_classification_code.text = hs_code.local_code
+        # origin_country_id and hs_code_id are provided
+        # by the OCA module product_harmonized_system
+        if (
+            hasattr(product, "origin_country_id")
+            and product.type in ("product", "consu")
+            and product.origin_country_id
+        ):
+            origin_trade_country = etree.SubElement(
+                trade_product, ns["ram"] + "OriginTradeCountry"
+            )
+            origin_trade_country_code = etree.SubElement(
+                origin_trade_country, ns["ram"] + "ID"
+            )
+            origin_trade_country_code.text = product.origin_country_id.code
 
     def _cii_add_invoice_line_block(self, trade_transaction, iline, line_number, ns):
         self.ensure_one()
@@ -711,10 +700,7 @@ class AccountMove(models.Model):
                     trade_allowance, ns["ram"] + "ChargeIndicator"
                 )
                 indicator = etree.SubElement(charge_indic, ns["udt"] + "Indicator")
-                if fc_discount == 1:
-                    indicator.text = "false"
-                else:
-                    indicator.text = "true"
+                indicator.text = "false" if fc_discount == 1 else "true"
                 actual_amount = etree.SubElement(
                     trade_allowance, ns["ram"] + "ActualAmount"
                 )
@@ -799,9 +785,7 @@ class AccountMove(models.Model):
         dpo = self.env["decimal.precision"]
         level = self.company_id.facturx_level or "en16931"
         refund_type = self.company_id.facturx_refund_type or "381"
-        sign = 1
-        if self.move_type == "out_refund" and refund_type == "380":
-            sign = -1
+        sign = -1 if self.move_type == "out_refund" and refund_type == "380" else 1
         lang = self.partner_id.lang or self.env.user.lang or "en_US"
         tax_speeddict = self.company_id._get_tax_unece_speeddict()
         fp_speeddict = self.company_id._get_fiscal_position_speeddict(lang=lang)
@@ -842,9 +826,7 @@ class AccountMove(models.Model):
         )
 
         if ns["level"] in ("extended", "en16931", "basic"):
-            line_number = 0
-            for iline in self.invoice_line_ids.filtered(lambda x: not x.display_type):
-                line_number += 1
+            for line_number, iline in enumerate(self.invoice_line_ids.filtered(lambda x: not x.display_type), start=1):
                 self._cii_add_invoice_line_block(
                     trade_transaction, iline, line_number, ns
                 )
@@ -868,7 +850,7 @@ class AccountMove(models.Model):
         self.ensure_one()
         company_name = self.company_id.name
         inv_type = self.move_type == "out_refund" and _("Refund") or _("Invoice")
-        pdf_metadata = {
+        return {
             "author": company_name,
             "keywords": ", ".join([inv_type, _("Factur-X")]),
             "title": _("%s: %s %s dated %s")
@@ -878,15 +860,8 @@ class AccountMove(models.Model):
                 self.name or self.state,
                 self.invoice_date or "(no date)",
             ),
-            "subject": "Factur-X %s %s dated %s issued by %s"
-            % (
-                inv_type,
-                self.name or self.state,
-                self.invoice_date or "(no date)",
-                company_name,
-            ),
+            "subject": f'Factur-X {inv_type} {self.name or self.state} dated {self.invoice_date or "(no date)"} issued by {company_name}',
         }
-        return pdf_metadata
 
     def _prepare_facturx_attachments(self):
         # This method is designed to be inherited in other modules

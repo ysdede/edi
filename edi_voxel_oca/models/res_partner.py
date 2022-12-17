@@ -16,6 +16,4 @@ class ResPartner(models.Model):
         """Rip initial ES prefix if exists."""
         self.ensure_one()
         vat = self.vat or ""
-        if vat.startswith("ES"):
-            return vat[2:]
-        return vat
+        return vat[2:] if vat.startswith("ES") else vat

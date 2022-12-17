@@ -151,12 +151,14 @@ class EDIExchangeRecord(models.Model):
             rec.ack_exchange_id = rec._get_ack_record()
 
     def _get_ack_record(self):
-        if not self.type_id.ack_type_id:
-            return None
-        return fields.first(
-            self.related_exchange_ids.filtered(
-                lambda x: x.type_id == self.type_id.ack_type_id
-            ).sorted("id", reverse=True)
+        return (
+            fields.first(
+                self.related_exchange_ids.filtered(
+                    lambda x: x.type_id == self.type_id.ack_type_id
+                ).sorted("id", reverse=True)
+            )
+            if self.type_id.ack_type_id
+            else None
         )
 
     def _compute_ack_expected(self):
@@ -181,12 +183,8 @@ class EDIExchangeRecord(models.Model):
 
     @property
     def record(self):
-        # In some case the res_model (and res_id) could be empty so we have to load
-        # data from parent
-        if not self.model and not self.parent_id:
-            return None
-        if not self.model and self.parent_id:
-            return self.parent_id.record
+        if not self.model:
+            return self.parent_id.record if self.parent_id else None
         return self.env[self.model].browse(self.res_id).exists()
 
     def _set_file_content(
@@ -213,7 +211,7 @@ class EDIExchangeRecord(models.Model):
             rec_name = rec.identifier
             if rec.res_id and rec.model:
                 rec_name = rec.record.display_name
-            name = "[{}] {}".format(rec.type_id.name, rec_name)
+            name = f"[{rec.type_id.name}] {rec_name}"
             result.append((rec.id, name))
         return result
 
@@ -250,11 +248,10 @@ class EDIExchangeRecord(models.Model):
                     raise exceptions.ValidationError(
                         _("Backend must match with exchange type's backend!")
                     )
-            else:
-                if rec.type_id.backend_type_id != rec.backend_id.backend_type_id:
-                    raise exceptions.ValidationError(
-                        _("Backend type must match with exchange type's backend type!")
-                    )
+            elif rec.type_id.backend_type_id != rec.backend_id.backend_type_id:
+                raise exceptions.ValidationError(
+                    _("Backend type must match with exchange type's backend type!")
+                )
 
     @property
     def _exchange_status_messages(self):
@@ -332,9 +329,7 @@ class EDIExchangeRecord(models.Model):
 
     def action_open_related_record(self):
         self.ensure_one()
-        if not self.model or not self.res_id:
-            return {}
-        return self.record.get_formview_action()
+        return self.record.get_formview_action() if self.model and self.res_id else {}
 
     def _set_related_record(self, odoo_record):
         self.update({"model": odoo_record._name, "res_id": odoo_record.id})
@@ -365,8 +360,7 @@ class EDIExchangeRecord(models.Model):
 
     def _trigger_edi_event_make_name(self, name, suffix=None):
         return "on_edi_exchange_{name}{suffix}".format(
-            name=name,
-            suffix=("_" + suffix) if suffix else "",
+            name=name, suffix=f"_{suffix}" if suffix else ""
         )
 
     def _trigger_edi_event(self, name, suffix=None, **kw):
@@ -513,8 +507,7 @@ class EDIExchangeRecord(models.Model):
 
     def _job_delay_params(self):
         params = {}
-        channel = self.type_id.sudo().job_channel_id
-        if channel:
+        if channel := self.type_id.sudo().job_channel_id:
             params["channel"] = channel.complete_name
         return params
 

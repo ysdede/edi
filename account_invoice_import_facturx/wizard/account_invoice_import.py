@@ -32,7 +32,7 @@ class AccountInvoiceImport(models.TransientModel):
             return super().parse_xml_invoice(xml_root)
 
     def prepare_facturx_xpath_dict(self):
-        xpath_dict = {
+        return {
             "partner": {
                 "vat": [
                     "//ram:ApplicableHeaderTradeAgreement"
@@ -166,7 +166,6 @@ class AccountInvoiceImport(models.TransientModel):
                 "/ram:GrandTotalAmount",  # ZUGFeRD
             ],
         }
-        return xpath_dict
 
     @api.model
     def parse_facturx_taxes(self, taxes_xpath, namespaces):
@@ -211,8 +210,7 @@ class AccountInvoiceImport(models.TransientModel):
     ):
         # This method is designed to work for global AND line charges/allowance
         acentry = {}
-        reason = self.multi_xpath_helper(acline, ["ram:Reason"], namespaces)
-        if reason:
+        if reason := self.multi_xpath_helper(acline, ["ram:Reason"], namespaces):
             acentry["name"] = reason
         # ChargeIndicator and ActualAmount are required field
         acentry["price_unit"] = self.multi_xpath_helper(
@@ -237,11 +235,10 @@ class AccountInvoiceImport(models.TransientModel):
                 acentry["name"] = _("Misc Charge")
         else:
             raise UserError(_("Unknown ChargeIndicator %s", ch_indic))
-        acentry["name"] = "{} ({})".format(acentry["name"], label_suffix)
-        taxes_xpath = self.raw_multi_xpath_helper(
+        acentry["name"] = f'{acentry["name"]} ({label_suffix})'
+        if taxes_xpath := self.raw_multi_xpath_helper(
             acline, ["ram:CategoryTradeTax"], namespaces
-        )
-        if taxes_xpath:
+        ):
             acentry["taxes"] = self.parse_facturx_taxes(taxes_xpath, namespaces)
         else:
             acentry["taxes"] = global_taxes

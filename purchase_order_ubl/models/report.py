@@ -21,10 +21,13 @@ class IrActionsReport(models.Model):
         pdf_content = super()._post_pdf(
             save_in_attachment, pdf_content=pdf_content, res_ids=res_ids
         )
-        if res_ids and len(res_ids) == 1:
-            if self.is_ubl_xml_to_embed_in_purchase_order():
-                purchase_order = self.env["purchase.order"].browse(res_ids)
-                pdf_content = purchase_order.embed_ubl_xml_in_pdf(pdf_content)
+        if (
+            res_ids
+            and len(res_ids) == 1
+            and self.is_ubl_xml_to_embed_in_purchase_order()
+        ):
+            purchase_order = self.env["purchase.order"].browse(res_ids)
+            pdf_content = purchase_order.embed_ubl_xml_in_pdf(pdf_content)
         return pdf_content
 
     def _render_qweb_pdf(self, res_ids=None, data=None):
@@ -35,12 +38,15 @@ class IrActionsReport(models.Model):
         # Eg https://github.com/odoo/odoo/blob/10378872eddd6037f479fa8cbb3ed65d5e4b52c6
         # /addons/account/models/account_bank_statement.py#L440
         if (
-            isinstance(res_ids, int)
-            or len(res_ids or []) == 1
-            and not self.env.context.get("no_embedded_ubl_xml")
+            (
+                isinstance(res_ids, int)
+                or len(res_ids or []) == 1
+                and not self.env.context.get("no_embedded_ubl_xml")
+            )
+            and len(self) == 1
+            and self.is_ubl_xml_to_embed_in_purchase_order()
         ):
-            if len(self) == 1 and self.is_ubl_xml_to_embed_in_purchase_order():
-                self = self.with_context(force_report_rendering=True)
+            self = self.with_context(force_report_rendering=True)
         return super()._render_qweb_pdf(res_ids, data)
 
     def is_ubl_xml_to_embed_in_purchase_order(self):

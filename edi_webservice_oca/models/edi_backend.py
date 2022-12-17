@@ -15,7 +15,7 @@ class EdiBackend(models.Model):
         candidates = super()._get_component_usage_candidates(exchange_record, key)
         if not self.webservice_backend_id or key not in self._webservice_actions:
             return candidates
-        return ["webservice.{}".format(key)] + candidates
+        return [f"webservice.{key}"] + candidates
 
     def _component_match_attrs(self, exchange_record, key):
         # Override to inject `webservice_protocol` as match attribute
@@ -28,8 +28,9 @@ class EdiBackend(models.Model):
     def _component_sort_key(self, component_class):
         res = super()._component_sort_key(component_class)
         # Override to give precedence by `webservice_protocol` when needed.
-        if not self.webservice_backend_id:
-            return res
         return (
-            1 if getattr(component_class, "_webservice_protocol", False) else 0,
-        ) + res
+            (1 if getattr(component_class, "_webservice_protocol", False) else 0,)
+            + res
+            if self.webservice_backend_id
+            else res
+        )

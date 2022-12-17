@@ -19,4 +19,4 @@ class TestCommon(SavepointCase):
         path = os.path.join(os.path.dirname(__file__), "fixtures", filename)
         with open(path, mode) as thefile:
             content = thefile.read()
-            return content if not as_b64 else base64.b64encode(content)
+            return base64.b64encode(content) if as_b64 else content

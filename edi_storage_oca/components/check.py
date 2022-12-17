@@ -41,21 +41,20 @@ class EDIStorageCheckComponentMixin(Component):
                 self.exchange_record.identifier,
             )
             if (
-                not self.exchange_record.edi_exchange_state
-                == "output_sent_and_processed"
+                self.exchange_record.edi_exchange_state
+                != "output_sent_and_processed"
             ):
                 self.exchange_record.edi_exchange_state = "output_sent_and_processed"
                 self.exchange_record._notify_done()
             return False
 
-        error = self._get_remote_file("error")
-        if error:
+        if error := self._get_remote_file("error"):
             _logger.info(
                 "%s error",
                 self.exchange_record.identifier,
             )
             # Assume a text file will be placed there w/ the same name and error suffix
-            err_filename = self.exchange_record.exchange_filename + ".error"
+            err_filename = f"{self.exchange_record.exchange_filename}.error"
             error_report = (
                 self._get_remote_file("error", filename=err_filename) or "no-report"
             )
@@ -77,8 +76,7 @@ class EDIStorageCheckComponentMixin(Component):
     def _exchange_output_handle_ack(self):
         ack_type = self.exchange_record.type_id.ack_type_id
         filename = ack_type._make_exchange_filename(self.exchange_record)
-        ack_file = self._get_remote_file("done", filename=filename)
-        if ack_file:
+        if ack_file := self._get_remote_file("done", filename=filename):
             self.backend.create_record(
                 ack_type.code,
                 {

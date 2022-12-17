@@ -46,10 +46,9 @@ def send_file(odoo, file_path):
         inv_b64 = base64.encodebytes(invoice)
         aiio = odoo.env["account.invoice.import"]
         try:
-            invoice_id = aiio.create_invoice_webservice(
+            if invoice_id := aiio.create_invoice_webservice(
                 inv_b64.decode("utf8"), filename, "mass import script"
-            )
-            if invoice_id:
+            ):
                 logger.info("Invoice ID %d successfully created in Odoo", invoice_id)
                 invoice_ids.append(invoice_id)
                 return "success"
@@ -98,8 +97,7 @@ def handle_failure(directory, entry, file_path):
     if not args.no_move_failed:
         if directory not in fail_subdir_ok:
             update_fail_subdir(directory, args.fail_subdir)
-        fail_dir_path = fail_subdir_ok[directory]
-        if fail_dir_path:
+        if fail_dir_path := fail_subdir_ok[directory]:
             logger.info(
                 "Moving file %s to sub-directory %s",
                 entry,
@@ -123,7 +121,7 @@ def browse_directory(odoo, directory):
     elif os.path.isfile(directory):
         res = send_file(odoo, directory)
     else:
-        logger.warning("%s is not a directory nor a file. Skipped." % directory)
+        logger.warning(f"{directory} is not a directory nor a file. Skipped.")
 
 
 def main(args):
@@ -158,7 +156,7 @@ def main(args):
             "script at least one directory as argument."
         )
         sys.exit(1)
-    proto = args.no_ssl and "jsonrpc" or "jsonrpc+ssl"
+    proto = "jsonrpc" if args.no_ssl else "jsonrpc+ssl"
     logger.info(
         "Connecting to Odoo %s:%s in %s database %s username %s",
         args.server,

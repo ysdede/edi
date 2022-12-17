@@ -193,10 +193,7 @@ class AccountInvoiceImport(models.TransientModel):
         if parsed_inv.get("partner") and parsed_inv["partner"].get("email"):
             source_email = parsed_inv["partner"]["email"]
             if parsed_inv["partner"].get("name"):
-                source_email = "%s <%s>" % (
-                    parsed_inv["partner"]["name"],
-                    source_email,
-                )
+                source_email = f'{parsed_inv["partner"]["name"]} <{source_email}>'
             vals["invoice_source_email"] = source_email
 
     @api.model
@@ -291,14 +288,13 @@ class AccountInvoiceImport(models.TransientModel):
             vals["invoice_payment_term_id"] = False
         # Bank info
         if parsed_inv.get("iban") and vals["move_type"] == "in_invoice":
-            partner_bank = self._match_partner_bank(
+            if partner_bank := self._match_partner_bank(
                 partner,
                 parsed_inv["iban"],
                 parsed_inv.get("bic"),
                 parsed_inv["chatter_msg"],
                 create_if_not_found=company.invoice_import_create_bank_account,
-            )
-            if partner_bank:
+            ):
                 vals["partner_bank_id"] = partner_bank.id
         # get invoice line vals
         vals["invoice_line_ids"] = []
@@ -323,9 +319,7 @@ class AccountInvoiceImport(models.TransientModel):
                         % (partner.id, partner.display_name)
                     )
 
-        # Write analytic account + fix syntax for taxes
-        analytic_account = import_config.get("account_analytic", False)
-        if analytic_account:
+        if analytic_account := import_config.get("account_analytic", False):
             for line in vals["invoice_line_ids"]:
                 line[2]["analytic_account_id"] = analytic_account.id
         return vals
@@ -453,9 +447,7 @@ class AccountInvoiceImport(models.TransientModel):
                 ("type_tax_use", "=", "purchase"),
             ]
         )
-        if not vat_purchase_taxes:
-            return True
-        return False
+        return not vat_purchase_taxes
 
     @api.model
     def parse_invoice(self, invoice_file_b64, invoice_filename, email_from=None):
@@ -498,10 +490,7 @@ class AccountInvoiceImport(models.TransientModel):
                 parsed_inv["partner"]["email"] = email
             if partner_name and not parsed_inv["partner"].get("name"):
                 parsed_inv["partner"]["name"] = partner_name
-        # pre_process_parsed_inv() will be called again a second time,
-        # but it's OK
-        pp_parsed_inv = self.pre_process_parsed_inv(parsed_inv)
-        return pp_parsed_inv
+        return self.pre_process_parsed_inv(parsed_inv)
 
     @api.model
     def pre_process_parsed_inv(self, parsed_inv):
@@ -526,7 +515,7 @@ class AccountInvoiceImport(models.TransientModel):
             parsed_inv["amount_untaxed"] = (
                 parsed_inv["amount_total"] - parsed_inv["amount_tax"]
             )
-        elif "amount_untaxed" not in parsed_inv and "amount_tax" not in parsed_inv:
+        elif "amount_untaxed" not in parsed_inv:
             # For invoices that never have taxes
             parsed_inv["amount_untaxed"] = parsed_inv["amount_total"]
         # Support the 2 refund methods; if method a) is used, we convert to
@@ -610,7 +599,7 @@ class AccountInvoiceImport(models.TransientModel):
     @api.model
     def invoice_already_exists(self, commercial_partner, parsed_inv):
         company_id = self.env.context.get("force_company") or self.env.company.id
-        existing_inv = self.env["account.move"].search(
+        return self.env["account.move"].search(
             [
                 ("company_id", "=", company_id),
                 ("commercial_partner_id", "=", commercial_partner.id),
@@ -619,7 +608,6 @@ class AccountInvoiceImport(models.TransientModel):
             ],
             limit=1,
         )
-        return existing_inv
 
     def get_parsed_invoice(self):
         """Hook to change the method of retrieval for the invoice data"""
@@ -636,10 +624,10 @@ class AccountInvoiceImport(models.TransientModel):
             "partner_vat": partner_dict.get("vat"),
         }
         if parsed_inv["partner"].get("country_code"):
-            country = self.env["res.country"].search(
-                [("code", "=", partner_dict["country_code"].upper().strip())], limit=1
-            )
-            if country:
+            if country := self.env["res.country"].search(
+                [("code", "=", partner_dict["country_code"].upper().strip())],
+                limit=1,
+            ):
                 vals["partner_country_id"] = country.id
         self.write(vals)
         xmlid = "account_invoice_import.account_invoice_import_action"
@@ -695,14 +683,13 @@ class AccountInvoiceImport(models.TransientModel):
 
     def update_partner_vat_show(self):
         self.update_partner_vat()
-        action = {
+        return {
             "name": self.partner_id.display_name,
             "type": "ir.actions.act_window",
             "res_model": "res.partner",
             "res_id": self.partner_id.id,
             "view_mode": "form",
         }
-        return action
 
     def update_partner_vat_continue(self):
         self.update_partner_vat()
@@ -728,14 +715,13 @@ class AccountInvoiceImport(models.TransientModel):
             and partner_dict.get("state_code")
             and isinstance(partner_dict["state_code"], str)
         ):
-            country_state = self.env["res.country.state"].search(
+            if country_state := self.env["res.country.state"].search(
                 [
                     ("code", "=", partner_dict["state_code"].upper().strip()),
                     ("country_id", "=", self.partner_country_id.id),
                 ],
                 limit=1,
-            )
-            if country_state:
+            ):
                 context["default_state_id"] = country_state.id
         return context
 
@@ -743,7 +729,7 @@ class AccountInvoiceImport(models.TransientModel):
         parsed_inv = self.get_parsed_invoice()
         # we don't create a new partner, we just show a pre-filled partner form
         context = self._prepare_new_partner_context(parsed_inv)
-        action = {
+        return {
             "name": self.partner_id.display_name,
             "type": "ir.actions.act_window",
             "res_model": "res.partner",
@@ -751,13 +737,6 @@ class AccountInvoiceImport(models.TransientModel):
             "view_mode": "form",
             "context": context,
         }
-        # After this, when you save the partner, the active_id field in the
-        # URL is still the ID of the wizard. It will trigger an error if
-        # you click on "0 invoice import configuration" right after:
-        # Record does not exist or has been deleted.
-        # (Record: res.partner(<ID wizard>,), User: 2)
-        # If you have an idea on how to fix this problem, please tell me!
-        return action
 
     def import_invoice(self):
         """Method called by the button of the wizard
@@ -767,18 +746,17 @@ class AccountInvoiceImport(models.TransientModel):
         aiico = self.env["account.invoice.import.config"]
         company_id = self.env.context.get("force_company") or self.env.company.id
         parsed_inv = self.get_parsed_invoice()
-        if not self.partner_id:
-            if parsed_inv.get("partner"):
-                try:
-                    partner = self._match_partner(
-                        parsed_inv["partner"], parsed_inv["chatter_msg"]
-                    )
-                except UserError as e:
-                    return self.goto_partner_not_found(parsed_inv, e)
-            else:
-                partner = False
-        else:
+        if self.partner_id:
             partner = self.partner_id
+        elif parsed_inv.get("partner"):
+            try:
+                partner = self._match_partner(
+                    parsed_inv["partner"], parsed_inv["chatter_msg"]
+                )
+            except UserError as e:
+                return self.goto_partner_not_found(parsed_inv, e)
+        else:
+            partner = False
         if partner:
             partner = partner.commercial_partner_id
             currency = self._match_currency(
@@ -794,8 +772,7 @@ class AccountInvoiceImport(models.TransientModel):
                 "amount_total": parsed_inv["amount_total"],
             }
 
-            existing_inv = self.invoice_already_exists(partner, parsed_inv)
-            if existing_inv:
+            if existing_inv := self.invoice_already_exists(partner, parsed_inv):
                 raise UserError(
                     _(
                         "This invoice already exists in Odoo. It's "
@@ -931,15 +908,13 @@ class AccountInvoiceImport(models.TransientModel):
         parsed_inv = self.parse_invoice(
             invoice_file_b64, invoice_filename, email_from=email_from
         )
-        partner = self._match_partner(
+        if partner := self._match_partner(
             parsed_inv["partner"], parsed_inv["chatter_msg"], raise_exception=False
-        )
-        if partner:
+        ):
             partner = partner.commercial_partner_id
             # To avoid a second full _match_partner() inside create_invoice()
             parsed_inv["partner"]["recordset"] = partner
-            existing_inv = self.invoice_already_exists(partner, parsed_inv)
-            if existing_inv:
+            if existing_inv := self.invoice_already_exists(partner, parsed_inv):
                 logger.warning(
                     "This supplier invoice already exists "
                     "in Odoo (ID %d number %s supplier number %s)",
@@ -980,7 +955,7 @@ class AccountInvoiceImport(models.TransientModel):
     def _prepare_global_adjustment_line(self, diff_amount, invoice, import_config):
         amlo = self.env["account.move.line"]
         prec = invoice.currency_id.rounding
-        sign = diff_amount > 0 and 1 or -1
+        sign = 1 if diff_amount > 0 else -1
         il_vals = {
             "name": _("Adjustment"),
             "quantity": sign,
@@ -1009,15 +984,15 @@ class AccountInvoiceImport(models.TransientModel):
                         )
                     )
                 il_vals["account_id"] = company.adjustment_debit_account_id.id
-            else:
-                if not company.adjustment_credit_account_id:
-                    raise UserError(
-                        _(
-                            "You must configure the 'Adjustment Credit Account' "
-                            "on the Accounting Configuration page."
-                        )
-                    )
+            elif company.adjustment_credit_account_id:
                 il_vals["account_id"] = company.adjustment_credit_account_id.id
+            else:
+                raise UserError(
+                    _(
+                        "You must configure the 'Adjustment Credit Account' "
+                        "on the Accounting Configuration page."
+                    )
+                )
         logger.debug("Prepared global ajustment invoice line %s", il_vals)
         return il_vals
 
@@ -1255,9 +1230,7 @@ class AccountInvoiceImport(models.TransientModel):
                 eline.write(write_vals)
         if compare_res["to_remove"]:
             to_remove_label = [
-                "{} {} x {}".format(
-                    line.quantity, line.product_uom_id.name, line.product_id.name
-                )
+                f"{line.quantity} {line.product_uom_id.name} x {line.product_id.name}"
                 for line in compare_res["to_remove"]
             ]
             chatter.append(
@@ -1273,8 +1246,7 @@ class AccountInvoiceImport(models.TransientModel):
                 )
                 new_line = amlo.create(line_vals)
                 to_create_label.append(
-                    "%s %s x %s"
-                    % (new_line.quantity, new_line.product_uom_id.name, new_line.name)
+                    f"{new_line.quantity} {new_line.product_uom_id.name} x {new_line.name}"
                 )
             chatter.append(
                 _("%d new invoice line(s) created: %s")
@@ -1289,19 +1261,15 @@ class AccountInvoiceImport(models.TransientModel):
             {"move_id": invoice, "qty": import_line["qty"], "product_id": product}
         )
         new_line._onchange_product_id()
-        vals = {
+        return {
             f: new_line._fields[f].convert_to_write(new_line[f], new_line)
             for f in new_line._cache
+        } | {
+            "product_id": product.id,
+            "price_unit": import_line.get("price_unit"),
+            "quantity": import_line["qty"],
+            "move_id": invoice.id,
         }
-        vals.update(
-            {
-                "product_id": product.id,
-                "price_unit": import_line.get("price_unit"),
-                "quantity": import_line["qty"],
-                "move_id": invoice.id,
-            }
-        )
-        return vals
 
     @api.model
     def _prepare_update_invoice_vals(self, parsed_inv, invoice):
@@ -1313,14 +1281,13 @@ class AccountInvoiceImport(models.TransientModel):
             vals["invoice_date_due"] = parsed_inv["date_due"]
         if parsed_inv.get("iban"):
             company = invoice.company_id
-            partner_bank = self._match_partner_bank(
+            if partner_bank := self._match_partner_bank(
                 invoice.commercial_partner_id,
                 parsed_inv["iban"],
                 parsed_inv.get("bic"),
                 parsed_inv["chatter_msg"],
                 create_if_not_found=company.invoice_import_create_bank_account,
-            )
-            if partner_bank:
+            ):
                 vals["partner_bank_id"] = partner_bank.id
         return vals
 
@@ -1430,19 +1397,16 @@ class AccountInvoiceImport(models.TransientModel):
                     ):
                         raise UserError(_("Only the date format 102 is supported "))
                     date_dt = datetime.strptime(xpath_res[0].text, "%Y%m%d")
-                    date_str = fields.Date.to_string(date_dt)
-                    return date_str
+                    return fields.Date.to_string(date_dt)
                 elif isfloat:
-                    res_float = float(xpath_res[0].text)
-                    return res_float
+                    return float(xpath_res[0].text)
                 else:
                     return xpath_res[0].text
         return False
 
     def raw_multi_xpath_helper(self, xml_root, xpath_list, namespaces):
         for xpath in xpath_list:
-            xpath_res = xml_root.xpath(xpath, namespaces=namespaces)
-            if xpath_res:
+            if xpath_res := xml_root.xpath(xpath, namespaces=namespaces):
                 return xpath_res
         return []
 

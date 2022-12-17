@@ -29,15 +29,15 @@ class TestEDIStorageBase(EDIBackendCommonComponentTestCase):
         cls.record = cls.backend.create_record("test_csv_output", vals)
         cls.record_input = cls.backend.create_record("test_csv_input", vals)
 
-        cls.fakepath = "/tmp/{}".format(cls._filename(cls))
+        cls.fakepath = f"/tmp/{cls._filename(cls)}"
         with open(cls.fakepath, "w+b") as fakefile:
             fakefile.write(b"filecontent")
 
-        cls.fakepath_ack = "/tmp/{}.ack".format(cls._filename(cls))
+        cls.fakepath_ack = f"/tmp/{cls._filename(cls)}.ack"
         with open(cls.fakepath_ack, "w+b") as fakefile:
             fakefile.write(b"ACK filecontent")
 
-        cls.fakepath_error = "/tmp/{}.error".format(cls._filename(cls))
+        cls.fakepath_error = f"/tmp/{cls._filename(cls)}.error"
         with open(cls.fakepath_error, "w+b") as fakefile:
             fakefile.write(b"ERROR XYZ: line 2 broken on bla bla")
 
@@ -97,29 +97,27 @@ class TestEDIStorageBase(EDIBackendCommonComponentTestCase):
         self._storage_backend_calls.append(path)
 
     def _mocked_backend_list_files(self, mocked_paths, path, **kwargs):
-        files = []
         path_length = len(path)
-        for p in mocked_paths.keys():
-            if path in p and path != p:
-                files.append(p[path_length:])
-        return files
+        return [
+            p[path_length:] for p in mocked_paths.keys() if path in p and path != p
+        ]
 
     def _mock_storage_backend_get(self, mocked_paths):
         mocked = functools.partial(self._mocked_backend_get, mocked_paths)
-        return mock.patch(STORAGE_BACKEND_MOCK_PATH + ".get", mocked)
+        return mock.patch(f"{STORAGE_BACKEND_MOCK_PATH}.get", mocked)
 
     def _mock_storage_backend_add(self):
-        return mock.patch(STORAGE_BACKEND_MOCK_PATH + ".add", self._mocked_backend_add)
+        return mock.patch(f"{STORAGE_BACKEND_MOCK_PATH}.add", self._mocked_backend_add)
 
     def _mock_storage_backend_list_files(self, mocked_paths):
         mocked = functools.partial(self._mocked_backend_list_files, mocked_paths)
-        return mock.patch(STORAGE_BACKEND_MOCK_PATH + ".list_files", mocked)
+        return mock.patch(f"{STORAGE_BACKEND_MOCK_PATH}.list_files", mocked)
 
     def _mock_storage_backend_find_files(self, result):
         def _result(self, pattern, relative_path=None, **kw):
             return result
 
-        return mock.patch(STORAGE_BACKEND_MOCK_PATH + ".find_files", _result)
+        return mock.patch(f"{STORAGE_BACKEND_MOCK_PATH}.find_files", _result)
 
     def _test_result(
         self,

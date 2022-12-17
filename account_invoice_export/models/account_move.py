@@ -19,7 +19,7 @@ class AccountMove(models.Model):
     def export_invoice(self):
         resend_invoice = self.env.context.get("resend_ebill", False)
         for invoice in self:
-            description = "{} - Export ebill".format(invoice.transmit_method_id.name)
+            description = f"{invoice.transmit_method_id.name} - Export ebill"
             invoice.with_delay(description=description)._job_export_invoice(
                 resend_invoice
             )
@@ -67,9 +67,7 @@ class AccountMove(models.Model):
         if res.status_code != 200:
             raise UserError(
                 _(
-                    "HTTP error {} sending invoice to {}".format(
-                        res.status_code, self.transmit_method_id.name
-                    )
+                    f"HTTP error {res.status_code} sending invoice to {self.transmit_method_id.name}"
                 )
             )
         self.invoice_exported = self.invoice_export_confirmed = True
@@ -110,7 +108,7 @@ class AccountMove(models.Model):
             error_log = _("An error of type {} occured.").format(
                 values.get("error_type")
             )
-        activity.note += "<div class='mt16'><p>{}</p></div>".format(error_log)
+        activity.note += f"<div class='mt16'><p>{error_log}</p></div>"
 
     def log_success_sending_invoice(self):
         """Log success sending invoice and clear existing exception, if any."""

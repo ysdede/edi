@@ -158,8 +158,7 @@ class ResPartner(models.Model):
         regex = []
         for entry in self.simple_pdf_invoice_number_ids:
             entry._prepare_invoice_number_regex(regex)
-        regex_string = "".join(regex)
-        return regex_string
+        return "".join(regex)
 
     def pdf_simple_generate_default_fields(self):
         self.ensure_one()
@@ -193,12 +192,9 @@ class ResPartner(models.Model):
         self.ensure_one()
         aiio = self.env["account.invoice.import"]
         rpo = self.env["res.partner"]
-        vals = {}
-        test_results = []
-        test_results.append("<small>%s</small><br/>" % _("Errors are in red."))
+        test_results = [f'<small>{_("Errors are in red.")}</small><br/>']
         test_results.append(
-            "<small>%s %s</small><br/>"
-            % (_("Test Date:"), format_datetime(self.env, fields.Datetime.now()))
+            f'<small>{_("Test Date:")} {format_datetime(self.env, fields.Datetime.now())}</small><br/>'
         )
         if not self.simple_pdf_test_file:
             raise UserError(_("You must upload a test PDF invoice."))
@@ -207,21 +203,17 @@ class ResPartner(models.Model):
         file_data = base64.b64decode(self.simple_pdf_test_file)
         raw_text_dict = aiio.simple_pdf_text_extraction(file_data, test_info)
         test_results.append(
-            "<small>%s %s</small><br/>"
-            % (
-                _("Text extraction system parameter:"),
-                test_info.get("text_extraction_config") or _("none"),
-            )
+            f'<small>{_("Text extraction system parameter:")} {test_info.get("text_extraction_config") or _("none")}</small><br/>'
         )
         test_results.append(
-            "<small>%s %s</small><br/>"
-            % (_("Text extraction tool used:"), test_info.get("text_extraction"))
+            f'<small>{_("Text extraction tool used:")} {test_info.get("text_extraction")}</small><br/>'
         )
-        if self.simple_pdf_pages == "first":
-            vals["simple_pdf_test_raw_text"] = raw_text_dict["first"]
-        else:
-            vals["simple_pdf_test_raw_text"] = raw_text_dict["all"]
-        test_results.append("<h3>%s</h3><ul>" % _("Searching Partner"))
+        vals = {
+            "simple_pdf_test_raw_text": raw_text_dict["first"]
+            if self.simple_pdf_pages == "first"
+            else raw_text_dict["all"]
+        }
+        test_results.append(f'<h3>{_("Searching Partner")}</h3><ul>')
         partner_id = aiio.simple_pdf_match_partner(
             raw_text_dict["all_no_space"], test_results
         )
@@ -232,38 +224,20 @@ class ResPartner(models.Model):
                 partner_ok = True
                 partner_result = _("Current partner found")
             else:
-                partner_result = "%s %s" % (
-                    _("Found another partner:"),
-                    partner.display_name,
-                )
+                partner_result = f'{_("Found another partner:")} {partner.display_name}'
         else:
             partner_result = _("No partner found.")
         test_results.append(
-            "<li><b>%s</b> <b%s>%s</b></li></ul>"
-            % (_("Result:"), not partner_ok and ERROR_STYLE or "", partner_result)
+            f'<li><b>{_("Result:")}</b> <b{not partner_ok and ERROR_STYLE or ""}>{partner_result}</b></li></ul>'
         )
         if partner_ok:
             partner_config = self._simple_pdf_partner_config()
-            test_results.append("<h3>%s</h3><ul>" % _("Amount Setup"))
+            test_results.append(f'<h3>{_("Amount Setup")}</h3><ul>')
             test_results.append(
-                """<li>%s "%s" (%s)</li>"""
-                % (
-                    _("Decimal Separator:"),
-                    partner_config["decimal_sep"],
-                    partner_config["char2separator"].get(
-                        partner_config["decimal_sep"], _("unknown")
-                    ),
-                )
+                f"""<li>{_("Decimal Separator:")} "{partner_config["decimal_sep"]}" ({partner_config["char2separator"].get(partner_config["decimal_sep"], _("unknown"))})</li>"""
             )
             test_results.append(
-                """<li>%s "%s" (%s)</li></ul>"""
-                % (
-                    _("Thousand Separator:"),
-                    partner_config["thousand_sep"],
-                    partner_config["char2separator"].get(
-                        partner_config["thousand_sep"], _("unknown")
-                    ),
-                )
+                f"""<li>{_("Thousand Separator:")} "{partner_config["thousand_sep"]}" ({partner_config["char2separator"].get(partner_config["thousand_sep"], _("unknown"))})</li></ul>"""
             )
             parsed_inv = aiio.simple_pdf_parse_invoice(file_data, test_info)
             key2label = {
@@ -277,18 +251,14 @@ class ResPartner(models.Model):
                 "end": _("End String"),
             }
             for field in self.simple_pdf_field_ids:
-                test_results.append(
-                    "<h3>%s</h3><ul>" % test_info["field_name_sel"][field.name]
-                )
+                test_results.append(f'<h3>{test_info["field_name_sel"][field.name]}</h3><ul>')
                 extract_method = test_info["extract_rule_sel"][field.extract_rule]
                 if field.extract_rule.startswith("position_"):
                     extract_method += _(", Position: %d") % field.position
-                test_results.append(
-                    "<li>%s %s</li>" % (_("Extract Rule:"), extract_method)
-                )
+                test_results.append(f'<li>{_("Extract Rule:")} {extract_method}</li>')
                 for key, value in test_info[field.name].items():
                     if key != "pattern" or self.env.user.has_group("base.group_system"):
-                        test_results.append("<li>%s: %s</li>" % (key2label[key], value))
+                        test_results.append(f"<li>{key2label[key]}: {value}</li>")
 
                 result = parsed_inv.get(field.name)
                 if "date" in field.name and result:
@@ -298,12 +268,7 @@ class ResPartner(models.Model):
                         self.env, result, parsed_inv["currency"]["recordset"]
                     )
                 test_results.append(
-                    "<li><b>%s</b> <b%s>%s</b></li></ul>"
-                    % (
-                        _("Result:"),
-                        not result and ERROR_STYLE or "",
-                        result or _("None"),
-                    )
+                    f'<li><b>{_("Result:")}</b> <b{not result and ERROR_STYLE or ""}>{result or _("None")}</b></li></ul>'
                 )
         vals["simple_pdf_test_results"] = "\n".join(test_results)
         self.write(vals)

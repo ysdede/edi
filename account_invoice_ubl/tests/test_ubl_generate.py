@@ -27,7 +27,7 @@ class TestUblInvoice(SavepointCase):
         aio = self.env["account.move"]
         ato = self.env["account.tax"]
         company = self.env.ref("base.main_company")
-        taxes = ato.search(
+        if taxes := ato.search(
             [
                 ("company_id", "=", company.id),
                 ("type_tax_use", "=", "sale"),
@@ -35,8 +35,7 @@ class TestUblInvoice(SavepointCase):
                 ("unece_categ_id", "!=", False),
                 ("amount_type", "=", "percent"),
             ]
-        )
-        if taxes:
+        ):
             tax = taxes[0]
         else:
             unece_type_id = self.env.ref("account_tax_unece.tax_type_vat").id

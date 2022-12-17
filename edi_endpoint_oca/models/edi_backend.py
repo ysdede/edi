@@ -44,12 +44,11 @@ class EDIBackend(models.Model):
 
     @api.constrains("active")
     def _check_archive(self):
-        to_check = [
+        if to_check := [
             x
             for x in self
             if not x.active and x.endpoint_ids.filtered(lambda x: x.active)
-        ]
-        if to_check:
+        ]:
             raise exceptions.UserError(self._check_archive_error_msg(to_check))
 
     def _check_archive_error_msg(self, backends):

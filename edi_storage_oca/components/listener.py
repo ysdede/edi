@@ -61,9 +61,8 @@ class EdiStorageListener(Component):
             pending_dir = record.type_id._storage_fullpath(
                 record.backend_id.input_dir_pending
             ).as_posix()
-            error_dir = record.type_id._storage_fullpath(
+            if error_dir := record.type_id._storage_fullpath(
                 record.backend_id.input_dir_error
-            ).as_posix()
-            if error_dir:
+            ).as_posix():
                 res = self._move_file(storage, pending_dir, error_dir, file)
         return res

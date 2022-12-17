@@ -57,14 +57,12 @@ class EDIBackend(models.Model):
         record_conf = self._get_component_conf_for_record(exchange_record, key)
         # Load additional ctx keys if any
         collection = self
-        # TODO: document/test this
-        env_ctx = record_conf.get("env_ctx", {})
-        if env_ctx:
+        if env_ctx := record_conf.get("env_ctx", {}):
             collection = collection.with_context(**env_ctx)
             exchange_record = exchange_record.with_context(**env_ctx)
         work_ctx = {"exchange_record": exchange_record}
         # Inject work context from advanced settings
-        work_ctx.update(record_conf.get("work_ctx", {}))
+        work_ctx |= record_conf.get("work_ctx", {})
         # Model is not granted to be there
         model = exchange_record.model or self._name
         candidates = self._get_component_usage_candidates(exchange_record, key)
@@ -124,11 +122,12 @@ class EDIBackend(models.Model):
                 component = components[0](c_work_ctx)
                 _logger.debug("using component", component._name)
                 break
-        if not component and not safe:
+        if component or safe:
+            return component or None
+        else:
             raise NoComponentError(
-                "No component found matching any of: {}".format(usage_candidates)
+                f"No component found matching any of: {usage_candidates}"
             )
-        return component or None
 
     def _get_component_usage_candidates(self, exchange_record, key):
         """Retrieve usage candidates for components."""
@@ -258,15 +257,13 @@ class EDIBackend(models.Model):
             )
 
     def _exchange_generate(self, exchange_record, **kw):
-        component = self._get_component(exchange_record, "generate")
-        if component:
+        if component := self._get_component(exchange_record, "generate"):
             return component.generate()
         raise NotImplementedError("No handler for `_exchange_generate`")
 
     # TODO: add tests
     def _validate_data(self, exchange_record, value=None, **kw):
-        component = self._get_component(exchange_record, "validate")
-        if component:
+        if component := self._get_component(exchange_record, "validate"):
             return component.validate(value)
 
     def exchange_send(self, exchange_record):
@@ -337,8 +334,7 @@ class EDIBackend(models.Model):
         ]
 
     def _exchange_send(self, exchange_record):
-        component = self._get_component(exchange_record, "send")
-        if component:
+        if component := self._get_component(exchange_record, "send"):
             return component.send()
         raise NotImplementedError("No handler for `_exchange_send`")
 
@@ -419,13 +415,12 @@ class EDIBackend(models.Model):
         return domain
 
     def _exchange_output_check_state(self, exchange_record):
-        component = self._get_component(exchange_record, "check")
-        if component:
+        if component := self._get_component(exchange_record, "check"):
             return component.check()
         raise NotImplementedError("No handler for `_exchange_output_check_state`")
 
     def _exchange_process_check(self, exchange_record):
-        if not exchange_record.direction == "input":
+        if exchange_record.direction != "input":
             raise exceptions.UserError(
                 _("Record ID=%d is not meant to be processed") % exchange_record.id
             )
@@ -477,8 +472,7 @@ class EDIBackend(models.Model):
         return res
 
     def _exchange_process(self, exchange_record):
-        component = self._get_component(exchange_record, "process")
-        if component:
+        if component := self._get_component(exchange_record, "process"):
             return component.process()
         raise NotImplementedError()
 
@@ -495,8 +489,7 @@ class EDIBackend(models.Model):
         message = None
         content = None
         try:
-            content = self._exchange_receive(exchange_record)
-            if content:
+            if content := self._exchange_receive(exchange_record):
                 exchange_record._set_file_content(content)
                 self._validate_data(exchange_record)
         except EDIValidationError as err:
@@ -534,7 +527,7 @@ class EDIBackend(models.Model):
         # TODO: use `filtered_domain` + _input_pending_records_domain
         # and raise one single error
         # do the same for all the other check cases.
-        if not exchange_record.direction == "input":
+        if exchange_record.direction != "input":
             raise exceptions.UserError(
                 _("Record ID=%d is not meant to be processed") % exchange_record.id
             )
@@ -544,8 +537,7 @@ class EDIBackend(models.Model):
         ]
 
     def _exchange_receive(self, exchange_record):
-        component = self._get_component(exchange_record, "receive")
-        if component:
+        if component := self._get_component(exchange_record, "receive"):
             return component.receive()
         raise NotImplementedError()
 

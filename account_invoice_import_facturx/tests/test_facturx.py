@@ -168,9 +168,7 @@ class TestFacturx(TransactionCase):
         price_precision = self.env.ref("product.decimal_price")
         price_precision.digits = 4
         for (inv_file, res_dict) in sample_files.items():
-            f = file_open(
-                "account_invoice_import_facturx/tests/files/" + inv_file, "rb"
-            )
+            f = file_open(f"account_invoice_import_facturx/tests/files/{inv_file}", "rb")
             pdf_file = f.read()
             f.close()
             wiz = self.env["account.invoice.import"].create(

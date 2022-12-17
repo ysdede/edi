@@ -114,9 +114,7 @@ class SaleOrder(models.Model):
             self._ubl_add_delivery_terms(self.incoterm, xml_root, ns, version=version)
         self._ubl_add_quoted_monetary_total(xml_root, ns, version=version)
 
-        line_number = 0
-        for oline in self.order_line:
-            line_number += 1
+        for line_number, oline in enumerate(self.order_line, start=1):
             self._ubl_add_quotation_line(
                 xml_root, oline, line_number, ns, version=version
             )
@@ -179,10 +177,10 @@ class SaleOrder(models.Model):
 
     def get_ubl_filename(self, doc_type, version="2.1"):
         """This method is designed to be inherited"""
-        if doc_type == "quotation":
-            return "UBL-Quotation-%s.xml" % version
-        elif doc_type == "order":
-            return "UBL-OrderResponseSimple-%s.xml" % version
+        if doc_type == "order":
+            return f"UBL-OrderResponseSimple-{version}.xml"
+        elif doc_type == "quotation":
+            return f"UBL-Quotation-{version}.xml"
 
     def get_ubl_version(self):
         return self.env.context.get("ubl_version") or "2.1"
@@ -193,8 +191,7 @@ class SaleOrder(models.Model):
 
     def add_xml_in_pdf_buffer(self, buffer):
         self.ensure_one()
-        doc_type = self.get_ubl_sale_order_doc_type()
-        if doc_type:
+        if doc_type := self.get_ubl_sale_order_doc_type():
             version = self.get_ubl_version()
             xml_filename = self.get_ubl_filename(doc_type, version=version)
             xml_string = self.generate_ubl_xml_string(doc_type, version=version)
@@ -203,8 +200,7 @@ class SaleOrder(models.Model):
 
     def embed_ubl_xml_in_pdf(self, pdf_content):
         self.ensure_one()
-        doc_type = self.get_ubl_sale_order_doc_type()
-        if doc_type:
+        if doc_type := self.get_ubl_sale_order_doc_type():
             version = self.get_ubl_version()
             ubl_filename = self.get_ubl_filename(doc_type, version=version)
             xml_string = self.generate_ubl_xml_string(doc_type, version=version)

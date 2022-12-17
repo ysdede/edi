@@ -24,13 +24,13 @@ class EDIRecordTestCase(EDIBackendCommonTestCase):
         }
         record = self.backend.create_record("test_csv_output", vals)
         self.assertTrue(
-            record.identifier.startswith("EDI/{}".format(fields.Date.today().year))
+            record.identifier.startswith(f"EDI/{fields.Date.today().year}")
         )
         new_record = self.backend.create_record(
             "test_csv_output", dict(vals, identifier=record.identifier)
         )
         self.assertTrue(
-            new_record.identifier.startswith("EDI/{}".format(fields.Date.today().year))
+            new_record.identifier.startswith(f"EDI/{fields.Date.today().year}")
         )
         self.assertNotEqual(new_record.identifier, record.identifier)
 

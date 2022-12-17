@@ -38,7 +38,7 @@ class BusinessDocumentImport(models.AbstractModel):
                     e,
                 )
             if phone_num_e164:
-                partner = rpo.search(
+                if partner := rpo.search(
                     domain
                     + [
                         "|",
@@ -47,7 +47,6 @@ class BusinessDocumentImport(models.AbstractModel):
                     ],
                     limit=1,
                     order=order,
-                )
-                if partner:
+                ):
                     return partner
         return super()._hook_match_partner(partner_dict, chatter_msg, domain, order)

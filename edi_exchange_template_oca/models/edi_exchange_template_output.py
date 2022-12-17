@@ -67,7 +67,7 @@ class EDIExchangeOutputTemplate(models.Model):
 
     def exchange_generate(self, exchange_record, **kw):
         """Generate output for given record using related QWeb template."""
-        method = "_generate_" + self.generator
+        method = f"_generate_{self.generator}"
         try:
             generator = getattr(self, method)
         except AttributeError:
@@ -96,9 +96,8 @@ class EDIExchangeOutputTemplate(models.Model):
             "render_edi_template": self._render_template,
             "get_info_provider": self._get_info_provider,
             "info": {},
-        }
-        values.update(kw)
-        values.update(self._time_utils())
+        } | kw
+        values |= self._time_utils()
         values.update(self._evaluate_code_snippet(**values))
         return values
 
@@ -133,11 +132,10 @@ class EDIExchangeOutputTemplate(models.Model):
             exchange_record=exchange_record,
             record=exchange_record.record,
         )
-        default_work_ctx.update(work_ctx or {})
+        default_work_ctx |= (work_ctx or {})
         backend = exchange_record.backend_id
         model = exchange_record.model or backend._name
-        usage_candidates = [usage or self.code + ".info"]
-        provider = backend._find_component(
+        usage_candidates = [usage or f"{self.code}.info"]
+        return backend._find_component(
             model, usage_candidates, work_ctx=default_work_ctx, **kw
         )
-        return provider
