@@ -58,10 +58,9 @@ class ResCompany(models.Model):
                 and company.facturx_level in level2logo
             ):
                 fname = level2logo[company.facturx_level]
-                fname_path = "account_invoice_facturx/static/logos/%s" % fname
+                fname_path = f"account_invoice_facturx/static/logos/{fname}"
                 f = tools.file_open(fname_path, "rb")
-                f_binary = f.read()
-                if f_binary:
+                if f_binary := f.read():
                     facturx_logo = base64.b64encode(f_binary)
 
             company.facturx_logo = facturx_logo

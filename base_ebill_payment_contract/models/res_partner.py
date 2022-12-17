@@ -26,8 +26,6 @@ class ResPartner(models.Model):
         )
         if not contracts:
             _logger.error(
-                "eBill contract for {} on {} not found".format(
-                    self.name, transmit_method.name
-                )
+                f"eBill contract for {self.name} on {transmit_method.name} not found"
             )
         return contracts[0] if contracts else contracts

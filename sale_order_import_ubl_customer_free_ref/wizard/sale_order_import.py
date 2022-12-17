@@ -45,10 +45,9 @@ class SaleOrderImport(models.TransientModel):
             root_name = "main:RequestForQuotation"
         elif "Order" in main_xmlns:
             root_name = "main:Order"
-        customer_ref_xpath = xml_root.xpath(
-            "/%s/cbc:CustomerReference" % root_name, namespaces=ns
-        )
-        if customer_ref_xpath:
+        if customer_ref_xpath := xml_root.xpath(
+            f"/{root_name}/cbc:CustomerReference", namespaces=ns
+        ):
             ref = customer_ref_xpath[0].text
             res["customer_reference"] = ref
         return res

@@ -74,19 +74,16 @@ class BaseUbl(models.AbstractModel):
         self, partner, parent_node, ns, node_name="Contact", version="2.1"
     ):
         contact = etree.SubElement(parent_node, ns["cac"] + node_name)
-        contact_id_text = self._ubl_get_contact_id(partner)
-        if contact_id_text:
+        if contact_id_text := self._ubl_get_contact_id(partner):
             contact_id = etree.SubElement(contact, ns["cbc"] + "ID")
             contact_id.text = contact_id_text
         if partner.parent_id:
             contact_name = etree.SubElement(contact, ns["cbc"] + "Name")
             contact_name.text = partner.name or partner.parent_id.name
-        phone = partner.phone or partner.commercial_partner_id.phone
-        if phone:
+        if phone := partner.phone or partner.commercial_partner_id.phone:
             telephone = etree.SubElement(contact, ns["cbc"] + "Telephone")
             telephone.text = phone
-        email = partner.email or partner.commercial_partner_id.email
-        if email:
+        if email := partner.email or partner.commercial_partner_id.email:
             electronicmail = etree.SubElement(contact, ns["cbc"] + "ElectronicMail")
             electronicmail.text = email
 
@@ -112,8 +109,7 @@ class BaseUbl(models.AbstractModel):
     def _ubl_add_party_identification(
         self, commercial_partner, parent_node, ns, version="2.1"
     ):
-        id_dict = self._ubl_get_party_identification(commercial_partner)
-        if id_dict:
+        if id_dict := self._ubl_get_party_identification(commercial_partner):
             party_identification = etree.SubElement(
                 parent_node, ns["cac"] + "PartyIdentification"
             )
@@ -126,8 +122,7 @@ class BaseUbl(models.AbstractModel):
 
     @api.model
     def _ubl_get_tax_scheme_dict_from_partner(self, commercial_partner):
-        tax_scheme_dict = {"id": "VAT", "name": False, "type_code": False}
-        return tax_scheme_dict
+        return {"id": "VAT", "name": False, "type_code": False}
 
     @api.model
     def _ubl_add_party_tax_scheme(
@@ -212,8 +207,7 @@ class BaseUbl(models.AbstractModel):
             else:
                 partner = company.partner_id
         customer_party_root = etree.SubElement(parent_node, ns["cac"] + node_name)
-        partner_ref = self._ubl_get_customer_assigned_id(partner)
-        if partner_ref:
+        if partner_ref := self._ubl_get_customer_assigned_id(partner):
             customer_ref = etree.SubElement(
                 customer_party_root, ns["cbc"] + "SupplierAssignedAccountID"
             )
@@ -260,8 +254,7 @@ class BaseUbl(models.AbstractModel):
             else:
                 partner = company.partner_id
         supplier_party_root = etree.SubElement(parent_node, ns["cac"] + node_name)
-        partner_ref = self._ubl_get_customer_assigned_id(partner)
-        if partner_ref:
+        if partner_ref := self._ubl_get_customer_assigned_id(partner):
             supplier_ref = etree.SubElement(
                 supplier_party_root, ns["cbc"] + "CustomerAssignedAccountID"
             )
@@ -328,13 +321,14 @@ class BaseUbl(models.AbstractModel):
                 line_item, ns["cbc"] + "LineExtensionAmount", currencyID=currency.name
             )
             line_amount.text = str(price_subtotal)
-            price_unit = 0.0
-            # Use price_subtotal/qty to compute price_unit to be sure
-            # to get a *tax_excluded* price unit
-            if not float_is_zero(quantity, precision_digits=qty_precision):
-                price_unit = float_round(
-                    price_subtotal / float(quantity), precision_digits=price_precision
+            price_unit = (
+                0.0
+                if float_is_zero(quantity, precision_digits=qty_precision)
+                else float_round(
+                    price_subtotal / float(quantity),
+                    precision_digits=price_precision,
                 )
+            )
             price = etree.SubElement(line_item, ns["cac"] + "Price")
             price_amount = etree.SubElement(
                 price, ns["cbc"] + "PriceAmount", currencyID=currency.name
@@ -377,28 +371,23 @@ class BaseUbl(models.AbstractModel):
         product_name = False
         seller_code = False
         if product:
-            if type_ == "purchase":
-                if seller:
-                    sellers = product._select_seller(
-                        partner_id=seller, quantity=0.0, date=None, uom_id=False
-                    )
-                    if sellers:
-                        product_name = sellers[0].product_name
-                        seller_code = sellers[0].product_code
+            if type_ == "purchase" and seller:
+                if sellers := product._select_seller(
+                    partner_id=seller, quantity=0.0, date=None, uom_id=False
+                ):
+                    product_name = sellers[0].product_name
+                    seller_code = sellers[0].product_code
             if not seller_code:
                 seller_code = self._ubl_get_seller_code_from_product(product)
             if not product_name:
                 variant = ", ".join(product.attribute_line_ids.mapped("value_ids.name"))
-                product_name = (
-                    variant and "{} ({})".format(product.name, variant) or product.name
-                )
+                product_name = variant and f"{product.name} ({variant})" or product.name
         description = etree.SubElement(item, ns["cbc"] + "Description")
         description.text = name
         name_node = etree.SubElement(item, ns["cbc"] + "Name")
         name_node.text = product_name or name.split("\n")[0]
 
-        customer_code = self._ubl_get_customer_product_code(product, customer)
-        if customer_code:
+        if customer_code := self._ubl_get_customer_product_code(product, customer):
             buyer_identification = etree.SubElement(
                 item, ns["cac"] + "BuyersItemIdentification"
             )
@@ -429,10 +418,7 @@ class BaseUbl(models.AbstractModel):
             # I'm not 100% sure, but it seems that ClassifiedTaxCategory
             # contains the taxes of the product without taking into
             # account the fiscal position
-            if type_ == "sale":
-                taxes = product.taxes_id
-            else:
-                taxes = product.supplier_taxes_id
+            taxes = product.taxes_id if type_ == "sale" else product.supplier_taxes_id
             skip_taxes = self.env.context.get("ubl_add_item__skip_taxes")
             if taxes and not skip_taxes:
                 for tax in taxes:
@@ -488,7 +474,7 @@ class BaseUbl(models.AbstractModel):
     ):
         tax_category = etree.SubElement(parent_node, ns["cac"] + node_name)
         if not tax.unece_categ_id:
-            raise UserError(_("Missing UNECE Tax Category on tax '%s'" % tax.name))
+            raise UserError(_(f"Missing UNECE Tax Category on tax '{tax.name}'"))
         tax_category_id = etree.SubElement(
             tax_category, ns["cbc"] + "ID", schemeID="UN/ECE 5305", schemeAgencyID="6"
         )
@@ -504,9 +490,8 @@ class BaseUbl(models.AbstractModel):
     @api.model
     def _ubl_get_tax_scheme_dict_from_tax(self, tax):
         if not tax.unece_type_id:
-            raise UserError(_("Missing UNECE Tax Type on tax '%s'" % tax.name))
-        tax_scheme_dict = {"id": tax.unece_type_code, "name": False, "type_code": False}
-        return tax_scheme_dict
+            raise UserError(_(f"Missing UNECE Tax Type on tax '{tax.name}'"))
+        return {"id": tax.unece_type_code, "name": False, "type_code": False}
 
     @api.model
     def _ubl_add_tax_scheme(self, tax_scheme_dict, parent_node, ns, version="2.1"):
@@ -528,7 +513,7 @@ class BaseUbl(models.AbstractModel):
     @api.model
     def _ubl_get_nsmap_namespace(self, doc_name, version="2.1"):
         nsmap = {
-            None: "urn:oasis:names:specification:ubl:schema:xsd:" + doc_name,
+            None: f"urn:oasis:names:specification:ubl:schema:xsd:{doc_name}",
             "cac": "urn:oasis:names:specification:ubl:"
             "schema:xsd:CommonAggregateComponents-2",
             "cbc": "urn:oasis:names:specification:ubl:schema:xsd:"
@@ -544,24 +529,22 @@ class BaseUbl(models.AbstractModel):
 
     @api.model
     def _ubl_get_version(self, xml_root, root_name, ns):
-        version_xpath = xml_root.xpath(
-            "/%s/cbc:UBLVersionID" % root_name, namespaces=ns
-        )
-        if not version_xpath:
+        if version_xpath := xml_root.xpath(
+            f"/{root_name}/cbc:UBLVersionID", namespaces=ns
+        ):
+            return version_xpath[0].text.strip()
+        else:
             raise UserError(
                 _(
                     "The UBL XML file does not contain the version "
                     "for validating the content according to the schema."
                 )
             )
-        return version_xpath[0].text.strip()
 
     @api.model
     def _ubl_check_xml_schema(self, xml_string, document, version="2.1"):
         """Validate the XML file against the XSD"""
-        xsd_file = "base_ubl/data/xsd-{}/maindoc/UBL-{}-{}.xsd".format(
-            version, document, version
-        )
+        xsd_file = f"base_ubl/data/xsd-{version}/maindoc/UBL-{document}-{version}.xsd"
         xsd_etree_obj = etree.parse(file_open(xsd_file))
         official_schema = etree.XMLSchema(xsd_etree_obj)
         try:
@@ -688,16 +671,14 @@ class BaseUbl(models.AbstractModel):
             "phone": contact_phone_xpath and contact_phone_xpath[0].text or False,
         }
         id_nodes = party_node.xpath("cac:PartyIdentification/cbc:ID", namespaces=ns)
-        id_numbers = []
-        for id_node in id_nodes:
-            id_numbers.append(
-                {"value": id_node.text, "schemeID": id_node.attrib.get("schemeID")}
-            )
+        id_numbers = [
+            {"value": id_node.text, "schemeID": id_node.attrib.get("schemeID")}
+            for id_node in id_nodes
+        ]
         partner_dict["id_number"] = id_numbers
-        address_xpath = party_node.xpath("cac:PostalAddress", namespaces=ns)
-        if address_xpath:
+        if address_xpath := party_node.xpath("cac:PostalAddress", namespaces=ns):
             address_dict = self.ubl_parse_address(address_xpath[0], ns)
-            partner_dict.update(address_dict)
+            partner_dict |= address_dict
         return partner_dict
 
     @api.model
@@ -719,7 +700,7 @@ class BaseUbl(models.AbstractModel):
             and zip_xpath[0].text.replace(" ", "")
             or False
         )
-        address_dict = {
+        return {
             "street": street_xpath and street_xpath[0].text or False,
             "street_number": street_number_xpath
             and street_number_xpath[0].text
@@ -730,12 +711,10 @@ class BaseUbl(models.AbstractModel):
             "state_code": state_code,
             "country_code": country_code,
         }
-        return address_dict
 
     @api.model
     def ubl_parse_delivery(self, delivery_node, ns):
-        party_xpath = delivery_node.xpath("cac:DeliveryParty", namespaces=ns)
-        if party_xpath:
+        if party_xpath := delivery_node.xpath("cac:DeliveryParty", namespaces=ns):
             partner_dict = self.ubl_parse_party(party_xpath[0], ns)
         else:
             partner_dict = {}
@@ -743,14 +722,9 @@ class BaseUbl(models.AbstractModel):
             "cac:DeliveryParty/cac:PostalAddress", namespaces=ns
         )
         if not postal_xpath:
-            delivery_address_xpath = delivery_node.xpath(
+            if delivery_address_xpath := delivery_node.xpath(
                 "cac:DeliveryLocation/cac:Address", namespaces=ns
-            )
-            if not delivery_address_xpath:
-                delivery_address_xpath = delivery_node.xpath(
-                    "cac:DeliveryAddress", namespaces=ns
-                )
-            if delivery_address_xpath:
+            ) or delivery_node.xpath("cac:DeliveryAddress", namespaces=ns):
                 partner_dict.update(
                     self.ubl_parse_address(delivery_address_xpath[0], ns)
                 )
@@ -764,15 +738,13 @@ class BaseUbl(models.AbstractModel):
         if latest_date:
             latest_delivery = latest_date[0].text
             if latest_time:
-                latest_delivery += " " + latest_time[0].text[:-3]
+                latest_delivery += f" {latest_time[0].text[:-3]}"
             delivery_dict["commitment_date"] = latest_delivery
         return delivery_dict
 
     def ubl_parse_incoterm(self, delivery_term_node, ns):
-        incoterm_xpath = delivery_term_node.xpath("cbc:ID", namespaces=ns)
-        if incoterm_xpath:
-            incoterm_dict = {"code": incoterm_xpath[0].text}
-            return incoterm_dict
+        if incoterm_xpath := delivery_term_node.xpath("cbc:ID", namespaces=ns):
+            return {"code": incoterm_xpath[0].text}
         return {}
 
     def ubl_parse_product(self, line_node, ns):
@@ -783,11 +755,10 @@ class BaseUbl(models.AbstractModel):
         code_xpath = line_node.xpath(
             "cac:Item/cac:SellersItemIdentification/cbc:ID", namespaces=ns
         )
-        product_dict = {
+        return {
             "barcode": barcode_xpath and barcode_xpath[0].text or False,
             "code": code_xpath and code_xpath[0].text or False,
         }
-        return product_dict
 
     def get_xml_files_from_pdf(self, pdf_file):
         """Returns a dict with key = filename, value = XML file obj"""

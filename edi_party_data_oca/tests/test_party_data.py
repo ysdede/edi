@@ -68,8 +68,7 @@ class PartyDataTestCase(EDIBackendCommonComponentTestCase):
                 {"attrs": {"schemeID": "cat3"}, "value": f"cat3-p{number}"},
             ],
             "endpoint": {},
-        }
-        data.update(kw)
+        } | kw
         if allowed_codes:
             data["identifiers"] = [
                 x

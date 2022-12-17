@@ -135,8 +135,7 @@ class AccountInvoiceImportSimplePdfFields(models.Model):
             else:
                 return None
         if self.extract_rule in ("min", "max", "position_min", "position_max"):
-            data_list_sorted = list(data_list)
-            data_list_sorted.sort()
+            data_list_sorted = sorted(data_list)
             if self.name.startswith("date"):
                 test_info[self.name]["sorted_list"] = [
                     format_date(self.env, date_dt) for date_dt in data_list_sorted
@@ -162,10 +161,9 @@ class AccountInvoiceImportSimplePdfFields(models.Model):
                 )
                 if raise_if_none:
                     raise UserError(error_msg)
-                else:
-                    test_info[self.name]["error_msg"] = error_msg
-                    return None
-            sign = self.extract_rule == "position_min" and 1 or -1
+                test_info[self.name]["error_msg"] = error_msg
+                return None
+            sign = 1 if self.extract_rule == "position_min" else -1
             position = self.position
             if self.extract_rule == "position_min":
                 position -= 1
@@ -189,10 +187,9 @@ class AccountInvoiceImportSimplePdfFields(models.Model):
                 )
                 if raise_if_none:
                     raise UserError(error_msg)
-                else:
-                    test_info[self.name]["error_msg"] = error_msg
-                    return None
-            sign = self.extract_rule == "position_start" and 1 or -1
+                test_info[self.name]["error_msg"] = error_msg
+                return None
+            sign = 1 if self.extract_rule == "position_start" else -1
             position = self.position
             if self.extract_rule == "position_start":
                 position -= 1
@@ -212,14 +209,14 @@ class AccountInvoiceImportSimplePdfFields(models.Model):
                 test_info[self.name]["start"] = _("Successful cut on '%s'") % start
             else:
                 error_msg = _("String '%s' not found") % start
-                test_info[self.name]["start"] = "<b%s>%s</b>" % (ERROR_STYLE, error_msg)
+                test_info[self.name]["start"] = f"<b{ERROR_STYLE}>{error_msg}</b>"
         if end:
             if not restrict_text or (restrict_text and not restrict_text.strip()):
                 error_msg = _(
                     "No text to cut, maybe because start string "
                     "was the very end of the document"
                 )
-                test_info[self.name]["end"] = "<b%s>%s</b>" % (ERROR_STYLE, error_msg)
+                test_info[self.name]["end"] = f"<b{ERROR_STYLE}>{error_msg}</b>"
             else:
                 position = restrict_text.find(end)
                 if position >= 0:
@@ -227,10 +224,7 @@ class AccountInvoiceImportSimplePdfFields(models.Model):
                     test_info[self.name]["end"] = _("Successful cut on '%s'") % end
                 else:
                     error_msg = _("String '%s' not found") % end
-                    test_info[self.name]["end"] = "<b%s>%s</b>" % (
-                        ERROR_STYLE,
-                        error_msg,
-                    )
+                    test_info[self.name]["end"] = f"<b{ERROR_STYLE}>{error_msg}</b>"
         return restrict_text
 
     def _get_date(self, parsed_inv, raw_text, partner_config, test_info):
@@ -263,7 +257,7 @@ class AccountInvoiceImportSimplePdfFields(models.Model):
                 pattern = pattern.replace(src, dest)
 
             if date_separator_char == chr(32):
-                date_separator_regex = ",?%s+" % test_info["space_pattern"]
+                date_separator_regex = f',?{test_info["space_pattern"]}+'
             else:
                 date_separator_regex = regex.escape(date_separator_char)
 
@@ -282,13 +276,14 @@ class AccountInvoiceImportSimplePdfFields(models.Model):
             date_formatdt = date_formatdt.replace(src, dest)
         date_formatdt = date_formatdt.replace("-", date_separator_char)
         languages = (
-            partner_config["lang_short"] and [partner_config["lang_short"]] or None
+            [partner_config["lang_short"]]
+            if partner_config["lang_short"]
+            else None
         )
         for date_raw in res_regex:
-            date_dt = dateparser.parse(
+            if date_dt := dateparser.parse(
                 date_raw, date_formats=[date_formatdt], languages=languages
-            )
-            if date_dt:
+            ):
                 valid_dates_dt.append(date_dt)
             else:
                 logger.debug(
@@ -305,14 +300,10 @@ class AccountInvoiceImportSimplePdfFields(models.Model):
                 ],
             }
         )
-        if self.name == "date_due" or test_info["test_mode"]:
-            raise_if_none = False
-        else:
-            raise_if_none = True
-        date_dt = self.get_value_from_list(
+        raise_if_none = self.name != "date_due" and not test_info["test_mode"]
+        if date_dt := self.get_value_from_list(
             valid_dates_dt, test_info, raise_if_none=raise_if_none
-        )
-        if date_dt:
+        ):
             parsed_inv[self.name] = date_dt
         else:
             parsed_inv["failed_fields"].append(self.name)
@@ -339,15 +330,14 @@ class AccountInvoiceImportSimplePdfFields(models.Model):
         decimal_places = partner_config["currency"].decimal_places
         if self.regexp:
             pattern = self.regexp
+        elif decimal_places:
+            pattern = r"(?:\d{1,3}%s)*\d{1,3}%s\d{%d}" % (
+                thousand_sep_pattern,
+                decimal_sep_pattern,
+                decimal_places,
+            )
         else:
-            if decimal_places:
-                pattern = r"(?:\d{1,3}%s)*\d{1,3}%s\d{%d}" % (
-                    thousand_sep_pattern,
-                    decimal_sep_pattern,
-                    decimal_places,
-                )
-            else:
-                pattern = r"(?:\d{1,3}%s)*\d{1,3}" % thousand_sep_pattern
+            pattern = r"(?:\d{1,3}%s)*\d{1,3}" % thousand_sep_pattern
         test_info[self.name] = {"pattern": pattern}
         # don't take if followed by a % ? => means it's a rate
         restrict_text = self.restrict_text(raw_text, test_info)
@@ -408,8 +398,9 @@ class AccountInvoiceImportSimplePdfFields(models.Model):
         res_regex = regex.findall(pattern, restrict_text)
         test_info[self.name]["res_regex"] = res_regex
 
-        inv_number = self.get_value_from_list(res_regex, test_info, raise_if_none=False)
-        if inv_number:
+        if inv_number := self.get_value_from_list(
+            res_regex, test_info, raise_if_none=False
+        ):
             parsed_inv[self.name] = inv_number.strip()
         else:
             parsed_inv["failed_fields"].append(self.name)
@@ -421,10 +412,9 @@ class AccountInvoiceImportSimplePdfFields(models.Model):
         restrict_text = self.restrict_text(raw_text, test_info)
         res_regex = regex.findall(pattern, restrict_text)
         test_info[self.name]["res_regex"] = res_regex
-        description = self.get_value_from_list(
+        if description := self.get_value_from_list(
             res_regex, test_info, raise_if_none=False
-        )
-        if description:
+        ):
             parsed_inv[self.name] = description.strip()
         else:
             parsed_inv["failed_fields"].append(self.name)

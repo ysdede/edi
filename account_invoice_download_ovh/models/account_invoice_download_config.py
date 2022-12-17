@@ -96,7 +96,7 @@ class AccountInvoiceDownloadConfig(models.Model):
                 parsed_inv["invoice_number"],
                 rpdf.status_code,
             )
-        filename = "OVH_invoice_%s.pdf" % parsed_inv["invoice_number"]
+        filename = f'OVH_invoice_{parsed_inv["invoice_number"]}.pdf'
         parsed_inv["attachments"] = {filename: res}
         return
 
@@ -137,7 +137,7 @@ class AccountInvoiceDownloadConfig(models.Model):
                 oinv_num,
                 self.name,
             )
-            res_inv = client.get("/me/bill/%s" % oinv_num)
+            res_inv = client.get(f"/me/bill/{oinv_num}")
             logger.debug("Result of /me/bill/%s : %s", oinv_num, json.dumps(res_inv))
             oinv_date = res_inv["date"][:10]
             if not res_inv["priceWithoutTax"].get("value") and not res_inv[
@@ -177,7 +177,7 @@ class AccountInvoiceDownloadConfig(models.Model):
                     parsed_inv["invoice_number"],
                     parsed_inv["date"],
                 )
-                res_ilines = client.get("/me/bill/%s/details" % oinv_num)
+                res_ilines = client.get(f"/me/bill/{oinv_num}/details")
                 logger.debug(
                     "Result /me/bill/%s/details: %s", oinv_num, json.dumps(res_ilines)
                 )
@@ -190,7 +190,7 @@ class AccountInvoiceDownloadConfig(models.Model):
                         parsed_inv["invoice_number"],
                         parsed_inv["date"],
                     )
-                    res_iline = client.get("/me/bill/%s/details/%s" % (oinv_num, line))
+                    res_iline = client.get(f"/me/bill/{oinv_num}/details/{line}")
                     logger.debug(
                         "Result /me/bill/%s/details/%s: %s",
                         oinv_num,
@@ -215,12 +215,10 @@ class AccountInvoiceDownloadConfig(models.Model):
                         ],
                     }
                     if res_iline["periodStart"] and res_iline["periodEnd"]:
-                        line.update(
-                            {
-                                "date_start": res_iline["periodStart"],
-                                "date_end": res_iline["periodEnd"],
-                            }
-                        )
+                        line |= {
+                            "date_start": res_iline["periodStart"],
+                            "date_end": res_iline["periodEnd"],
+                        }
                     parsed_inv["lines"].append(line)
 
             logger.debug("Final parsed_inv=%s", parsed_inv)

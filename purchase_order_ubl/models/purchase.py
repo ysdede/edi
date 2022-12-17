@@ -104,9 +104,7 @@ class PurchaseOrder(models.Model):
 
     def get_delivery_partner(self):
         self.ensure_one()
-        if self.dest_address_id:
-            return self.dest_address_id
-        return self.company_id.partner_id
+        return self.dest_address_id or self.company_id.partner_id
 
     def generate_rfq_ubl_xml_etree(self, version="2.1"):
         nsmap, ns = self._ubl_get_nsmap_namespace(
@@ -223,10 +221,10 @@ class PurchaseOrder(models.Model):
 
     def get_ubl_filename(self, doc_type, version="2.1"):
         """This method is designed to be inherited"""
-        if doc_type == "rfq":
-            return "UBL-RequestForQuotation-%s.xml" % version
-        elif doc_type == "order":
-            return "UBL-Order-%s.xml" % version
+        if doc_type == "order":
+            return f"UBL-Order-{version}.xml"
+        elif doc_type == "rfq":
+            return f"UBL-RequestForQuotation-{version}.xml"
 
     def get_ubl_version(self):
         return self.env.context.get("ubl_version", "2.1")
@@ -237,8 +235,7 @@ class PurchaseOrder(models.Model):
 
     def add_xml_in_pdf_buffer(self, buffer):
         self.ensure_one()
-        doc_type = self.get_ubl_purchase_order_doc_type()
-        if doc_type:
+        if doc_type := self.get_ubl_purchase_order_doc_type():
             version = self.get_ubl_version()
             xml_filename = self.get_ubl_filename(doc_type, version=version)
             xml_string = self.generate_ubl_xml_string(doc_type, version=version)
@@ -247,8 +244,7 @@ class PurchaseOrder(models.Model):
 
     def embed_ubl_xml_in_pdf(self, pdf_content):
         self.ensure_one()
-        doc_type = self.get_ubl_purchase_order_doc_type()
-        if doc_type:
+        if doc_type := self.get_ubl_purchase_order_doc_type():
             version = self.get_ubl_version()
             xml_filename = self.get_ubl_filename(doc_type, version=version)
             xml_string = self.generate_ubl_xml_string(doc_type, version=version)

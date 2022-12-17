@@ -47,8 +47,10 @@ class TestInvoiceImport(SavepointCase):
             # "refund_account_id": cls.expense_account.id,
         }
         cls.purchase_tax = cls.env["account.tax"].create(purchase_tax_vals)
-        sale_tax_vals = purchase_tax_vals.copy()
-        sale_tax_vals.update({"description": "ZZ-VAT-sale-1.0", "type_tax_use": "sale"})
+        sale_tax_vals = purchase_tax_vals | {
+            "description": "ZZ-VAT-sale-1.0",
+            "type_tax_use": "sale",
+        }
         cls.sale_tax = cls.env["account.tax"].create(sale_tax_vals)
         cls.product = cls.env["product.product"].create(
             {
@@ -159,7 +161,7 @@ class TestInvoiceImport(SavepointCase):
         }
         for import_c in self.all_import_config:
             # hack to have a unique vendor inv ref
-            parsed_inv["invoice_number"] = "INV-%s" % import_c["invoice_line_method"]
+            parsed_inv["invoice_number"] = f'INV-{import_c["invoice_line_method"]}'
             inv = (
                 self.env["account.invoice.import"]
                 .with_company(self.company.id)
@@ -302,11 +304,11 @@ Nina
 
     def prepare_email_with_attachment(self, sender_email):
         file_name = "unknown_invoice.pdf"
-        file_path = "account_invoice_import/tests/pdf/%s" % file_name
+        file_path = f"account_invoice_import/tests/pdf/{file_name}"
         with file_open(file_path, "rb") as f:
             pdf_file = f.read()
-        msg_dict = {
-            "email_from": '"My supplier" <%s>' % sender_email,
+        return {
+            "email_from": f'"My supplier" <{sender_email}>',
             "to": self.company.invoice_import_email,
             "subject": "Invoice n°1242",
             "body": "Please find enclosed your PDF invoice",
@@ -315,7 +317,6 @@ Nina
                 self.env["mail.thread"]._Attachment(file_name, pdf_file, {})
             ],
         }
-        return msg_dict
 
     def test_email_no_partner_match(self):
         sender_email = "invoicing@unknownsupplier.com"

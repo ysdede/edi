@@ -40,12 +40,10 @@ class EDIBackendTestCase(EDIBackendCommonComponentRegistryTestCase):
 
     def _move_file_mocked(self, *args):
         self.fake_move_args = [*args]
-        if not all([*args]):
-            return False
-        return True
+        return all([*args])
 
     def _mock_listener_move_file(self):
-        return mock.patch(LISTENER_MOCK_PATH + "._move_file", self._move_file_mocked)
+        return mock.patch(f"{LISTENER_MOCK_PATH}._move_file", self._move_file_mocked)
 
     def test_01_process_record_success(self):
         with self._mock_listener_move_file():

@@ -82,7 +82,7 @@ class AccountInvoiceDownloadCredentials(models.TransientModel):
                 {
                     "views": False,
                     "view_id": False,
-                    "domain": "[('id', 'in', %s)]" % self.invoice_ids_str,
+                    "domain": f"[('id', 'in', {self.invoice_ids_str})]",
                 }
             )
         else:

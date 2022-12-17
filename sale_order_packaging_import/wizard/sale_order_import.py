@@ -14,12 +14,10 @@ class SaleOrderImport(models.TransientModel):
         vals = super()._prepare_create_order_line(
             product, uom, order, import_line, price_source
         )
-        packaging_code = import_line["product"].get("barcode")
-        if packaging_code:
-            packaging = product.packaging_ids.filtered(
+        if packaging_code := import_line["product"].get("barcode"):
+            if packaging := product.packaging_ids.filtered(
                 lambda pack: pack.barcode == packaging_code
-            )
-            if packaging:
+            ):
                 vals["product_packaging"] = packaging.id
                 vals["product_uom_qty"] = 0
                 vals["product_packaging_qty"] = import_line["qty"]

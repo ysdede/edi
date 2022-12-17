@@ -41,14 +41,11 @@ class EDIExchangeType(models.Model):
         """
         self.ensure_one()
         storage_settings = self.advanced_settings.get("storage", {})
-        path = storage_settings.get("path")
-        if path:
+        if path := storage_settings.get("path"):
             return PurePath(path)
-        path_config_param = storage_settings.get("path_config_param")
-        if path_config_param:
+        if path_config_param := storage_settings.get("path_config_param"):
             icp = self.env["ir.config_parameter"].sudo()
-            path = icp.get_param(path_config_param)
-            if path:
+            if path := icp.get_param(path_config_param):
                 return PurePath(path)
 
     def _storage_fullpath(self, directory=None, filename=None):

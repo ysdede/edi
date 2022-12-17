@@ -43,7 +43,7 @@ class AccountInvoiceImport(models.TransientModel):
                 if data_xpath[0].attrib and data_xpath[0].attrib.get("mimeCode"):
                     mimetype = data_xpath[0].attrib["mimeCode"].split("/")
                     if len(mimetype) == 2:
-                        filename = "{}.{}".format(filename, mimetype[1])
+                        filename = f"{filename}.{mimetype[1]}"
                 attachments[filename] = data_base64
         return attachments
 
@@ -96,10 +96,9 @@ class AccountInvoiceImport(models.TransientModel):
             categ_code = categ_code_xpath and categ_code_xpath[0].text or False
             if categ_code == "H":
                 categ_code = "S"
-            percent_xpath = tax.xpath("cbc:Percent", namespaces=namespaces)
-            if not percent_xpath:
-                percent_xpath = tax.xpath("../cbc:Percent", namespaces=namespaces)
-            if percent_xpath:
+            if percent_xpath := tax.xpath(
+                "cbc:Percent", namespaces=namespaces
+            ) or tax.xpath("../cbc:Percent", namespaces=namespaces):
                 percentage = percent_xpath[0].text and float(percent_xpath[0].text)
             else:
                 percentage = 0.0
@@ -111,7 +110,7 @@ class AccountInvoiceImport(models.TransientModel):
             }
             taxes.append(tax_dict)
 
-        vals = {
+        return {
             "product": product_dict,
             "qty": qty,
             "uom": uom,
@@ -120,7 +119,6 @@ class AccountInvoiceImport(models.TransientModel):
             "name": name,
             "taxes": taxes,
         }
-        return vals
 
     @api.model
     def parse_ubl_invoice(self, xml_root):
@@ -186,19 +184,17 @@ class AccountInvoiceImport(models.TransientModel):
             namespaces=namespaces,
         )
         amount_untaxed = float(total_untaxed_xpath[0].text)
-        total_line_xpath = xml_root.xpath(
+        if total_line_xpath := xml_root.xpath(
             "/inv:Invoice/cac:LegalMonetaryTotal/cbc:LineExtensionAmount",
             namespaces=namespaces,
-        )
-        if total_line_xpath:
+        ):
             total_line = float(total_line_xpath[0].text)
         else:
             total_line = amount_untaxed
-        amount_total_xpath = xml_root.xpath(
+        if amount_total_xpath := xml_root.xpath(
             "/inv:Invoice/cac:LegalMonetaryTotal/cbc:TaxInclusiveAmount",
             namespaces=namespaces,
-        )
-        if amount_total_xpath:
+        ):
             amount_total = float(amount_total_xpath[0].text)
         else:
             payable_total = xml_root.xpath(

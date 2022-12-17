@@ -52,11 +52,10 @@ class EDIEndpoint(models.Model):
     def _check_endpoint_ready(self, request=False):
         if not self.backend_id or not self.exchange_type_id:
             msg = _("Backend and exchange type are mandatory")
-            if request:
-                self._logger.error(msg)
-                raise werkzeug.exceptions.BadRequest("Endpoint mis-configured")
-            else:
+            if not request:
                 raise exceptions.UserError(msg)
+            self._logger.error(msg)
+            raise werkzeug.exceptions.BadRequest("Endpoint mis-configured")
 
     @api.constrains("exchange_type_id", "backend_type_id")
     def _check_backend_type(self):
@@ -64,7 +63,7 @@ class EDIEndpoint(models.Model):
             if (
                 rec.backend_type_id
                 and rec.exchange_type_id
-                and not rec.backend_type_id == rec.exchange_type_id.backend_type_id
+                and rec.backend_type_id != rec.exchange_type_id.backend_type_id
             ):
                 raise exceptions.UserError(
                     _("Exchange type not compatible with selected backend type.")

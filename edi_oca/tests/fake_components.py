@@ -14,21 +14,18 @@ class FakeComponentMixin(Component):
 
     def _fake_it(self):
         self.FAKED_COLLECTOR.append(self._call_key(self.exchange_record))
-        if self.env.context.get("test_break_" + self._action):
-            exception = self.env.context.get(
-                "test_break_" + self._action, "YOU BROKE IT!"
-            )
+        if self.env.context.get(f"test_break_{self._action}"):
+            exception = self.env.context.get(f"test_break_{self._action}", "YOU BROKE IT!")
             if not isinstance(exception, Exception):
                 exception = ValueError(exception)
             raise exception
-        update_values = self.env.context.get("fake_update_values")
-        if update_values:
+        if update_values := self.env.context.get("fake_update_values"):
             self.exchange_record.write(update_values)
         return self.env.context.get("fake_output", self._call_key(self.exchange_record))
 
     @classmethod
     def _call_key(cls, rec):
-        return "{}: {}".format(cls._name, rec.id)
+        return f"{cls._name}: {rec.id}"
 
     @classmethod
     def reset_faked(cls):

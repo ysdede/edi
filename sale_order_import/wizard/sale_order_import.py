@@ -75,22 +75,23 @@ class SaleOrderImport(models.TransientModel):
         assert filecontent, "Missing file content"
         filetype = mimetypes.guess_type(filename)
         logger.debug("Order file mimetype: %s", filetype)
-        mimetype = filetype[0]
-        supported_types = {
-            "CSV": ("text/csv", "text/plain"),
-            "XML": ("application/xml", "text/xml"),
-            "PDF": ("application/pdf"),
-        }
         res = None
-        if filetype and mimetype in supported_types["CSV"]:
-            res = False
-        elif filetype and mimetype in supported_types["XML"]:
-            xml_root, error_msg = self._parse_xml(filecontent)
-            if (xml_root is None or not len(xml_root)) and error_msg:
-                raise UserError(error_msg)
-            res = self.parse_xml_order(xml_root, detect_doc_type=detect_doc_type)
-        elif filetype and mimetype == supported_types["PDF"]:
-            res = self.parse_pdf_order(filecontent, detect_doc_type=detect_doc_type)
+        if filetype:
+            mimetype = filetype[0]
+            supported_types = {
+                "CSV": ("text/csv", "text/plain"),
+                "XML": ("application/xml", "text/xml"),
+                "PDF": ("application/pdf"),
+            }
+            if mimetype in supported_types["CSV"]:
+                res = False
+            elif mimetype in supported_types["XML"]:
+                xml_root, error_msg = self._parse_xml(filecontent)
+                if (xml_root is None or not len(xml_root)) and error_msg:
+                    raise UserError(error_msg)
+                res = self.parse_xml_order(xml_root, detect_doc_type=detect_doc_type)
+            elif mimetype == supported_types["PDF"]:
+                res = self.parse_pdf_order(filecontent, detect_doc_type=detect_doc_type)
         return res
 
     def _unsupported_file_msg(self, filename):
@@ -158,10 +159,9 @@ class SaleOrderImport(models.TransientModel):
         for xml_filename, xml_root in xml_files_dict.items():
             logger.info("Trying to parse XML file %s", xml_filename)
             try:
-                parsed_order = self.parse_xml_order(
+                return self.parse_xml_order(
                     xml_root, detect_doc_type=detect_doc_type
                 )
-                return parsed_order
             except (etree.LxmlError, UserError):
                 continue
         raise UserError(
@@ -287,13 +287,12 @@ class SaleOrderImport(models.TransientModel):
         if not parsed_order.get("order_ref"):
             return
         commercial_partner = partner.commercial_partner_id
-        existing_orders = self.env["sale.order"].search(
+        if existing_orders := self.env["sale.order"].search(
             self._search_existing_order_domain(
                 parsed_order, commercial_partner, [("state", "!=", "cancel")]
             ),
             limit=1,
-        )
-        if existing_orders:
+        ):
             raise UserError(
                 _(
                     "An order of customer '%s' with reference '%s' "
@@ -368,31 +367,33 @@ class SaleOrderImport(models.TransientModel):
             partner_shipping_id = bdio._match_shipping_partner(
                 parsed_order["ship_to"], partner, []
             ).id
-        existing_quotations = self.env["sale.order"].search(
-            self._search_existing_order_domain(
-                parsed_order, commercial_partner, [("state", "in", ("draft", "sent"))]
+        if not (
+            existing_quotations := self.env["sale.order"].search(
+                self._search_existing_order_domain(
+                    parsed_order,
+                    commercial_partner,
+                    [("state", "in", ("draft", "sent"))],
+                )
             )
-        )
-        if existing_quotations:
-            default_sale_id = False
-            if len(existing_quotations) == 1:
-                default_sale_id = existing_quotations[0].id
-            self.write(
-                {
-                    "commercial_partner_id": commercial_partner.id,
-                    "partner_shipping_id": partner_shipping_id,
-                    "state": "update",
-                    "sale_id": default_sale_id,
-                    "doc_type": parsed_order.get("doc_type"),
-                }
-            )
-            action = self.env["ir.actions.act_window"]._for_xml_id(
-                "sale_order_import.sale_order_import_action"
-            )
-            action["res_id"] = self.id
-            return action
-        else:
+        ):
             return self.create_order_return_action(parsed_order, self.order_filename)
+        default_sale_id = (
+            existing_quotations[0].id if len(existing_quotations) == 1 else False
+        )
+        self.write(
+            {
+                "commercial_partner_id": commercial_partner.id,
+                "partner_shipping_id": partner_shipping_id,
+                "state": "update",
+                "sale_id": default_sale_id,
+                "doc_type": parsed_order.get("doc_type"),
+            }
+        )
+        action = self.env["ir.actions.act_window"]._for_xml_id(
+            "sale_order_import.sale_order_import_action"
+        )
+        action["res_id"] = self.id
+        return action
 
     def create_order_button(self):
         self.ensure_one()
@@ -446,20 +447,17 @@ class SaleOrderImport(models.TransientModel):
         """the 'order' arg can be a recordset (in case of an update of a sale order)
         or a dict (in case of the creation of a new sale order)"""
         solo = self.env["sale.order.line"]
-        vals = {}
         # Ensure the company is loaded before we play onchanges.
         # Yes, `company_id` is related to `order_id.company_id`
         # but when we call `play_onchanges` it will be empty
         # w/out this precaution.
         company_id = self._prepare_order_line_get_company_id(order)
-        vals.update(
-            {
-                "product_id": product.id,
-                "product_uom_qty": import_line["qty"],
-                "product_uom": uom.id,
-                "company_id": company_id,
-            }
-        )
+        vals = {} | {
+            "product_id": product.id,
+            "product_uom_qty": import_line["qty"],
+            "product_uom": uom.id,
+            "company_id": company_id,
+        }
         if price_source == "order":
             vals["price_unit"] = import_line["price_unit"]  # TODO : fix
         elif price_source == "pricelist":
@@ -557,13 +555,12 @@ class SaleOrderImport(models.TransientModel):
                             )
                         )
                         write_vals["price_unit"] = new_price_unit
-                write_vals.update(self._prepare_update_order_line_vals(cdict))
+                write_vals |= self._prepare_update_order_line_vals(cdict)
             if write_vals:
                 oline.write(write_vals)
         if compare_res["to_remove"]:
             to_remove_label = [
-                "%s %s x %s"
-                % (line.product_uom_qty, line.product_uom.name, line.product_id.name)
+                f"{line.product_uom_qty} {line.product_uom.name} x {line.product_id.name}"
                 for line in compare_res["to_remove"]
             ]
             chatter.append(
@@ -580,12 +577,7 @@ class SaleOrderImport(models.TransientModel):
                 line_vals["order_id"] = order.id
                 new_line = solo.create(line_vals)
                 to_create_label.append(
-                    "%s %s x %s"
-                    % (
-                        new_line.product_uom_qty,
-                        new_line.product_uom.name,
-                        new_line.name,
-                    )
+                    f"{new_line.product_uom_qty} {new_line.product_uom.name} x {new_line.name}"
                 )
             chatter.append(
                 _("%d new order line(s) created: %s")
@@ -618,10 +610,9 @@ class SaleOrderImport(models.TransientModel):
                 )
                 % (currency.name, order.currency_id.name)
             )
-        vals = self._prepare_update_order_vals(
+        if vals := self._prepare_update_order_vals(
             parsed_order, order, self.commercial_partner_id
-        )
-        if vals:
+        ):
             order.write(vals)
         self.update_order_lines(parsed_order, order, self.price_source)
         bdio.post_create_or_update(parsed_order, order)

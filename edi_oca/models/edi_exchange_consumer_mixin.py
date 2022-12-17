@@ -49,7 +49,7 @@ class EDIExchangeConsumerMixin(models.AbstractModel):
         for record in self:
             config = record._edi_get_exchange_type_config()
             record.edi_config = config
-            record.edi_has_form_config = any([x.get("form") for x in config.values()])
+            record.edi_has_form_config = any(x.get("form") for x in config.values())
 
     def _edi_get_exchange_type_config(self):
         exchange_types = (
@@ -79,7 +79,7 @@ class EDIExchangeConsumerMixin(models.AbstractModel):
     def _edi_get_exchange_type_conf(self, exchange_type):
         conf = {"form": {}}
         if exchange_type.model_manual_btn:
-            conf.update({"form": {"btn": {"label": exchange_type.name}}})
+            conf["form"] = {"btn": {"label": exchange_type.name}}
         return conf
 
     def _get_eval_context(self):
@@ -251,20 +251,21 @@ class EDIExchangeConsumerMixin(models.AbstractModel):
         """
         DocModel = self.env[model_name] if model_name else self
         create_allow = getattr(DocModel, "_edi_exchange_record_access", "write")
-        if operation in ["write", "unlink"]:
-            check_operation = "write"
-        elif operation == "create" and create_allow in [
+        if operation == "write":
+            return "write"
+        elif operation == "unlink":
+            return "write"
+        elif operation == "create" and create_allow in {
             "create",
             "read",
             "write",
             "unlink",
-        ]:
-            check_operation = create_allow
+        }:
+            return create_allow
         elif operation == "create":
-            check_operation = "write"
+            return "write"
         else:
-            check_operation = operation
-        return check_operation
+            return operation
 
     def _edi_set_origin(self, exc_record):
         self.sudo().update({"origin_exchange_record_id": exc_record.id})

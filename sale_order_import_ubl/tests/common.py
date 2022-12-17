@@ -10,7 +10,7 @@ from odoo.tools import DotDict, file_open
 
 
 def _get_file_content(filename):
-    path = "sale_order_import_ubl/tests/files/" + filename
+    path = f"sale_order_import_ubl/tests/files/{filename}"
     with file_open(path, "rb") as fd:
         return fd.read()
 

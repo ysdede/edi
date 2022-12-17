@@ -29,7 +29,9 @@ class TestInvoiceImport(TransactionCase):
 
     def test_import_free_invoice(self):
         filename = "invoice_free_fiber_201507.pdf"
-        f = file_open("account_invoice_import_invoice2data/tests/pdf/" + filename, "rb")
+        f = file_open(
+            f"account_invoice_import_invoice2data/tests/pdf/{filename}", "rb"
+        )
         pdf_file = f.read()
         pdf_file_b64 = base64.b64encode(pdf_file)
         wiz = self.env["account.invoice.import"].create(

@@ -114,7 +114,7 @@ class EDIExchangeTemplateMixin(models.AbstractModel):
             "user": self.env.user,
             "DotDict": DotDict,
         }
-        ctx.update(self._time_utils())
+        ctx |= self._time_utils()
         return ctx
 
     def _time_utils(self):

@@ -52,8 +52,7 @@ class AccountMove(models.Model):
 
     def _ubl_add_order_reference(self, parent_node, ns, version="2.1"):
         self.ensure_one()
-        sale_order_ref = self._ubl_get_order_reference()
-        if sale_order_ref:
+        if sale_order_ref := self._ubl_get_order_reference():
             order_ref = etree.SubElement(parent_node, ns["cac"] + "OrderReference")
             order_ref_id = etree.SubElement(order_ref, ns["cbc"] + "ID")
             order_ref_id.text = sale_order_ref
@@ -78,7 +77,7 @@ class AccountMove(models.Model):
         if self.company_id.embed_pdf_in_ubl_xml_invoice and not self.env.context.get(
             "no_embedded_pdf"
         ):
-            filename = "Invoice-" + self.name + ".pdf"
+            filename = f"Invoice-{self.name}.pdf"
             docu_reference = etree.SubElement(
                 parent_node, ns["cac"] + "AdditionalDocumentReference"
             )
@@ -91,9 +90,7 @@ class AccountMove(models.Model):
                 mimeCode="application/pdf",
                 filename=filename,
             )
-            ctx = dict()
-            ctx["no_embedded_ubl_xml"] = True
-            ctx["force_report_rendering"] = True
+            ctx = {"no_embedded_ubl_xml": True, "force_report_rendering": True}
             pdf_inv = (
                 self.with_context(ctx)
                 .env.ref("account.account_invoices")
@@ -161,13 +158,13 @@ class AccountMove(models.Model):
         price_amount = etree.SubElement(
             price_node, ns["cbc"] + "PriceAmount", currencyID=cur_name
         )
-        price_unit = 0.0
-        # Use price_subtotal/qty to compute price_unit to be sure
-        # to get a *tax_excluded* price unit
-        if not float_is_zero(qty, precision_digits=qty_precision):
-            price_unit = float_round(
+        price_unit = (
+            0.0
+            if float_is_zero(qty, precision_digits=qty_precision)
+            else float_round(
                 iline.price_subtotal / float(qty), precision_digits=price_precision
             )
+        )
         price_amount.text = "%0.*f" % (price_precision, price_unit)
         if uom_unece_code:
             base_qty = etree.SubElement(
@@ -293,9 +290,7 @@ class AccountMove(models.Model):
         self._ubl_add_tax_total(xml_root, ns, version=version)
         self._ubl_add_legal_monetary_total(xml_root, ns, version=version)
 
-        line_number = 0
-        for iline in self.invoice_line_ids:
-            line_number += 1
+        for line_number, iline in enumerate(self.invoice_line_ids, start=1):
             self._ubl_add_invoice_line(
                 xml_root, iline, line_number, ns, version=version
             )
@@ -330,7 +325,7 @@ class AccountMove(models.Model):
 
     def get_ubl_filename(self, version="2.1"):
         """This method is designed to be inherited"""
-        return "UBL-Invoice-%s.xml" % version
+        return f"UBL-Invoice-{version}.xml"
 
     def get_ubl_version(self):
         return self.env.context.get("ubl_version") or "2.1"
@@ -388,6 +383,4 @@ class AccountMove(models.Model):
     def is_ubl_sale_invoice_posted(self):
         self.ensure_one()
         is_ubl = self.company_id.xml_format_in_pdf_invoice == "ubl"
-        if is_ubl and self.is_sale_document() and self.state == "posted":
-            return True
-        return False
+        return bool(is_ubl and self.is_sale_document() and self.state == "posted")

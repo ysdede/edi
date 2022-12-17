@@ -9,9 +9,7 @@ class EDIBackend(models.Model):
     _inherit = "edi.backend"
 
     def _exchange_generate(self, exchange_record, **kw):
-        # Template take precedence over component lookup
-        tmpl = self._get_output_template(exchange_record)
-        if tmpl:
+        if tmpl := self._get_output_template(exchange_record):
             return tmpl.exchange_generate(exchange_record, **kw)
         return super()._exchange_generate(exchange_record, **kw)
 

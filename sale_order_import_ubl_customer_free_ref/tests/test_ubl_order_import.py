@@ -35,9 +35,7 @@ class TestUblOrderImport(SingleTransactionCase):
             },
         }
         for filename, res in tests.items():
-            file_path = (
-                "sale_order_import_ubl_customer_free_ref/tests/files/" + filename
-            )
+            file_path = f"sale_order_import_ubl_customer_free_ref/tests/files/{filename}"
             with file_open(file_path, "rb") as f:
                 xml_file = f.read()
             wiz = self.env["sale.order.import"].create(

@@ -54,11 +54,9 @@ class VoxelMixin(models.AbstractModel):
         eta = self.company_id._get_voxel_report_eta()
         queue_obj = self.env["queue.job"].sudo()
         for record in self.sudo():
-            # Look first if there's a failing job. If so, retry that one
-            failing_job = record.voxel_job_ids.filtered(lambda x: x.state == "failed")[
-                :1
-            ]
-            if failing_job:
+            if failing_job := record.voxel_job_ids.filtered(
+                lambda x: x.state == "failed"
+            )[:1]:
                 failing_job.voxel_requeue_sudo()
                 continue
             # If not, create a new one
@@ -106,13 +104,12 @@ class VoxelMixin(models.AbstractModel):
         # Determine documents with errors
         filenames = self._list_voxel_document_filenames("Error", company)
         with_errors = processed.filtered(lambda r: r.voxel_filename in filenames)
-        doc_dict = {}
-        for doc in with_errors:
-            if doc.voxel_filename:
-                doc_dict[doc.voxel_filename] = doc
+        doc_dict = {
+            doc.voxel_filename: doc for doc in with_errors if doc.voxel_filename
+        }
         for filename in filenames:
             if filename.endswith(".log"):
-                xml_file_name = filename[:-4] + ".xml"
+                xml_file_name = f"{filename[:-4]}.xml"
                 if xml_file_name in doc_dict:
                     document = doc_dict[xml_file_name]
                     # Look first if there's a job for the current filename.
@@ -147,8 +144,8 @@ class VoxelMixin(models.AbstractModel):
         )
         # Delete error files from Voxel
         self._delete_voxel_document("Error", filename, company)
-        self._delete_voxel_document("Error", filename[:-4] + ".xml", company)
-        self._delete_voxel_document("Error", filename[:-4] + ".utlog", company)
+        self._delete_voxel_document("Error", f"{filename[:-4]}.xml", company)
+        self._delete_voxel_document("Error", f"{filename[:-4]}.utlog", company)
 
     # Import methods
     # --------------
@@ -171,9 +168,7 @@ class VoxelMixin(models.AbstractModel):
     @job(default_channel="root.voxel_import")
     def _import_voxel_document(self, voxel_filename, company):
         content = self._read_voxel_document("Inbox", company, voxel_filename)
-        # call method that parse and create the document from the content
-        doc = self.create_document_from_xml(content, voxel_filename, company)
-        if doc:
+        if doc := self.create_document_from_xml(content, voxel_filename, company):
             # write file content in the created object
             doc.write({"voxel_xml_report": content, "voxel_filename": voxel_filename})
             # Delete file from Voxel
@@ -222,7 +217,7 @@ class VoxelMixin(models.AbstractModel):
         try:
             response = self._request_to_voxel(requests.get, folder, company)
         except Exception:
-            raise Exception("Error reading '{}' folder from Voxel".format(folder))
+            raise Exception(f"Error reading '{folder}' folder from Voxel")
         # if no error, return list of documents file names
         content = response.content
         return content and content.decode("utf-8").split("\n") or []
@@ -231,9 +226,7 @@ class VoxelMixin(models.AbstractModel):
         try:
             response = self._request_to_voxel(requests.get, folder, company, filename)
         except Exception:
-            raise Exception(
-                "Error reading document {} from folder {}".format(filename, folder)
-            )
+            raise Exception(f"Error reading document {filename} from folder {folder}")
         # Getting xml content with utf8 there are characters that can not
         # be decoded, so 'ISO-8859-1' is used
         return response.content.decode(encoding)
@@ -243,9 +236,7 @@ class VoxelMixin(models.AbstractModel):
             self._request_to_voxel(requests.delete, folder, company, voxel_filename)
         except Exception:
             raise Exception(
-                "Error deleting document {} from folder {}".format(
-                    voxel_filename, folder
-                )
+                f"Error deleting document {voxel_filename} from folder {folder}"
             )
 
     # auxiliary methods
@@ -254,7 +245,7 @@ class VoxelMixin(models.AbstractModel):
         self.ensure_one()
         document_type = self.get_document_type()
         date_time_seq = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-        return "{}_{}.xml".format(document_type, date_time_seq)
+        return f"{document_type}_{date_time_seq}.xml"
 
     def _cancel_voxel_jobs(self):
         # Remove not started jobs

@@ -47,13 +47,11 @@ class PDFParser:
         _logger.debug("pdf_root=%s", pdf_root)
         # TODO add support for /Kids
         embeddedfiles = pdf_root["/Names"]["/EmbeddedFiles"]["/Names"]
-        i = 0
         xmlfiles = {}  # key = filename, value = PDF obj
-        for embeddedfile in embeddedfiles[:-1]:
+        for i, embeddedfile in enumerate(embeddedfiles[:-1]):
             mime_res = mimetypes.guess_type(embeddedfile)
             if mime_res and mime_res[0] in ["application/xml", "text/xml"]:
                 xmlfiles[embeddedfile] = embeddedfiles[i + 1]
-            i += 1
         _logger.debug("xmlfiles=%s", xmlfiles)
         return xmlfiles
 

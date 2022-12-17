@@ -119,21 +119,18 @@ class AccountInvoiceDownloadConfig(models.Model):
     def name_get(self):
         res = []
         for rec in self:
-            name = "%s (%s / %s)" % (rec.name, rec.backend, rec.method)
+            name = f"{rec.name} ({rec.backend} / {rec.method})"
             res.append((rec.id, name))
         return res
 
     def credentials_stored(self):
-        if self.login and self.password:
-            return True
-        return False
+        return bool(self.login and self.password)
 
     def prepare_credentials(self):
-        credentials = {
+        return {
             "login": self.login,
             "password": self.password,
         }
-        return credentials
 
     def download(self, credentials, logs):
         """Returns a list of either:
@@ -166,7 +163,7 @@ class AccountInvoiceDownloadConfig(models.Model):
                     {
                         "views": False,
                         "view_id": False,
-                        "domain": "[('id', 'in', %s)]" % invoice_ids,
+                        "domain": f"[('id', 'in', {invoice_ids})]",
                     }
                 )
             else:
@@ -184,10 +181,7 @@ class AccountInvoiceDownloadConfig(models.Model):
             xmlid = (
                 "account_invoice_download.account_invoice_download_credentials_action"
             )
-            credentials_wiz_action = self.env["ir.actions.act_window"]._for_xml_id(
-                xmlid
-            )
-            return credentials_wiz_action
+            return self.env["ir.actions.act_window"]._for_xml_id(xmlid)
 
     def run(self, credentials):
         """Do the real work. Handle try/except.
@@ -219,7 +213,6 @@ class AccountInvoiceDownloadConfig(models.Model):
         company_id = self.company_id.id
         assert self.import_config_id.company_id.id == company_id
         import_config = self.import_config_id.convert_to_import_config()
-        existing_refs = {}  # key = invoice reference, value = inv ID
         existing_invs = amo.search_read(
             [
                 ("move_type", "in", ("in_invoice", "in_refund")),
@@ -229,8 +222,10 @@ class AccountInvoiceDownloadConfig(models.Model):
             ],
             ["ref"],
         )
-        for existing_inv in existing_invs:
-            existing_refs[existing_inv.get("ref")] = existing_inv["id"]
+        existing_refs = {
+            existing_inv.get("ref"): existing_inv["id"]
+            for existing_inv in existing_invs
+        }
         logger.debug("existing_refs=%s", existing_refs)
         for inv_struc in invoices_dl:
             if isinstance(inv_struc, dict):  # Pivot format
@@ -273,7 +268,7 @@ class AccountInvoiceDownloadConfig(models.Model):
                 invoice = aiio.with_company(company_id).create_invoice(
                     parsed_inv,
                     import_config=import_config,
-                    origin="Download Bill '%s'" % self.name,
+                    origin=f"Download Bill '{self.name}'",
                 )
             except Exception as e:
                 logs["msg"].append(

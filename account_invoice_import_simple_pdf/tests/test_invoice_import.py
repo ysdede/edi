@@ -59,7 +59,7 @@ class TestInvoiceImport(TransactionCase):
             }
         )
         self.module = "account_invoice_import_simple_pdf"
-        self.product = self.env.ref("%s.mobile_phone" % self.module)
+        self.product = self.env.ref(f"{self.module}.mobile_phone")
         self.product.supplier_taxes_id = [(6, 0, [frtax.id])]
 
         # for the full test with a PDF invoice
@@ -165,12 +165,12 @@ class TestInvoiceImport(TransactionCase):
         )
 
         self.ak_filename = "akretion_france-test.pdf"
-        with file_open("%s/tests/pdf/%s" % (self.module, self.ak_filename), "rb") as f:
+        with file_open(f"{self.module}/tests/pdf/{self.ak_filename}", "rb") as f:
             self.ak_pdf_file = f.read()
             self.ak_pdf_file_b64 = base64.b64encode(self.ak_pdf_file)
 
         self.bt_filename = "bouygues_telecom-test.pdf"
-        with file_open("%s/tests/pdf/%s" % (self.module, self.bt_filename), "rb") as f:
+        with file_open(f"{self.module}/tests/pdf/{self.bt_filename}", "rb") as f:
             self.bt_pdf_file = f.read()
             self.bt_pdf_file_b64 = base64.b64encode(self.bt_pdf_file)
 
@@ -273,7 +273,7 @@ class TestInvoiceImport(TransactionCase):
                     "date_separator": config["date_separator"],
                 }
             )
-            lang_list = config["lang"] == "any" and ["fr", "en"] or [config["lang"]]
+            lang_list = ["fr", "en"] if config["lang"] == "any" else [config["lang"]]
             for lang in lang_list:
                 self.partner_config["lang_short"] = lang
                 for raw_txt in raw_text_list:
@@ -427,7 +427,7 @@ class TestInvoiceImport(TransactionCase):
                     "simple_pdf_decimal_separator": config["decimal_separator"],
                     "simple_pdf_thousand_separator": config["thousand_separator"],
                     "simple_pdf_currency_id": self.env.ref(
-                        "base.%s" % config["currency"]
+                        f'base.{config["currency"]}'
                     ).id,
                 }
             )
@@ -492,7 +492,7 @@ class TestInvoiceImport(TransactionCase):
             ],
         }
         for src, config_list in inv_num_test.items():
-            raw_txt = "Invoice number: %s dated 20/08/2020" % src
+            raw_txt = f"Invoice number: {src} dated 20/08/2020"
             self.partner.simple_pdf_invoice_number_ids.unlink()
             self.partner.write(
                 {"simple_pdf_invoice_number_ids": [(0, 0, x) for x in config_list]}
@@ -550,8 +550,7 @@ class TestInvoiceImport(TransactionCase):
         icpo = self.env["ir.config_parameter"]
         key = "invoice_import_simple_pdf.pdf2txt"
         method = "pdfplumber"
-        configp = icpo.search([("key", "=", key)])
-        if configp:
+        if configp := icpo.search([("key", "=", key)]):
             configp.write({"value": method})
         else:
             icpo.create({"key": key, "value": method})

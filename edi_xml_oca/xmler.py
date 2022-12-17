@@ -78,11 +78,10 @@ def dict2xml(input_dict, encoding="utf-8", pretty=False):
 
     xml_string = tostring(parse(input_dict, pretty=pretty), encoding=encoding)
 
-    if pretty:
-        xml_pretty_string = minidom.parseString(xml_string)
-        return xml_pretty_string.toprettyxml().decode(encoding)
-    else:
+    if not pretty:
         return xml_string.decode(encoding)
+    xml_pretty_string = minidom.parseString(xml_string)
+    return xml_pretty_string.toprettyxml().decode(encoding)
 
 
 def parse(input_dict, parent=None, pretty=False):
@@ -114,7 +113,7 @@ def parse(input_dict, parent=None, pretty=False):
                 parent["value"] = value = val
 
     if "namespace" in parent:
-        parent["name"] = "{}:{}".format(parent["namespace"], parent["name"])
+        parent["name"] = f'{parent["namespace"]}:{parent["name"]}'
 
     if "attributes" in parent:
         element = Element(parent["name"], parent["attributes"])

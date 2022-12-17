@@ -52,7 +52,7 @@ class TestUblInvoice(HttpCase):
                     ).id,
                 }
             )
-        taxes = ato.search(
+        if taxes := ato.search(
             [
                 ("company_id", "=", company.id),
                 ("type_tax_use", "=", "sale"),
@@ -60,8 +60,7 @@ class TestUblInvoice(HttpCase):
                 ("unece_categ_id", "!=", False),
                 ("amount_type", "=", "percent"),
             ]
-        )
-        if taxes:
+        ):
             tax = taxes[0]
         else:
             unece_type_id = self.env.ref("account_tax_unece.tax_type_vat").id

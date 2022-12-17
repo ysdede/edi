@@ -21,11 +21,10 @@ class IrActionsReport(models.Model):
         pdf_content = super()._post_pdf(
             save_in_attachment, pdf_content=pdf_content, res_ids=res_ids
         )
-        if res_ids and len(res_ids) == 1:
-            if self.is_ubl_xml_to_embed_in_invoice():
-                invoice = self.env["account.move"].browse(res_ids)
-                if invoice.is_ubl_sale_invoice_posted():
-                    pdf_content = invoice.embed_ubl_xml_in_pdf(pdf_content)
+        if res_ids and len(res_ids) == 1 and self.is_ubl_xml_to_embed_in_invoice():
+            invoice = self.env["account.move"].browse(res_ids)
+            if invoice.is_ubl_sale_invoice_posted():
+                pdf_content = invoice.embed_ubl_xml_in_pdf(pdf_content)
         return pdf_content
 
     def is_ubl_xml_to_embed_in_invoice(self):

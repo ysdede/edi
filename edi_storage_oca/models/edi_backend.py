@@ -64,7 +64,7 @@ class EDIBackend(models.Model):
         candidates = super()._get_component_usage_candidates(exchange_record, key)
         if not self.storage_id or key not in self._storage_actions:
             return candidates
-        return ["storage.{}".format(key)] + candidates
+        return [f"storage.{key}"] + candidates
 
     def _component_match_attrs(self, exchange_record, key):
         # Override to inject storage_backend_type
@@ -77,11 +77,12 @@ class EDIBackend(models.Model):
     def _component_sort_key(self, component_class):
         res = super()._component_sort_key(component_class)
         # Override to give precedence by storage_backend_type when needed.
-        if not self.storage_id:
-            return res
         return (
-            1 if getattr(component_class, "_storage_backend_type", False) else 0,
-        ) + res
+            (1 if getattr(component_class, "_storage_backend_type", False) else 0,)
+            + res
+            if self.storage_id
+            else res
+        )
 
     def _storage_cron_check_pending_input(self, **kw):
         for backend in self:
@@ -133,10 +134,9 @@ class EDIBackend(models.Model):
         """Create a new exchange record for given type and file name if missing."""
         file_name = os.path.basename(remote_file_name)
         extra_domain = [("exchange_filename", "=", file_name)]
-        existing = self._find_existing_exchange_records(
+        if existing := self._find_existing_exchange_records(
             exchange_type, extra_domain=extra_domain, count_only=True
-        )
-        if existing:
+        ):
             return
         record = self.create_record(
             exchange_type.code, self._storage_new_exchange_record_vals(file_name)
@@ -149,14 +149,11 @@ class EDIBackend(models.Model):
             self.input_dir_pending
         ).as_posix()
         if not exchange_type.exchange_filename_pattern:
-            # If there is not pattern, return everything
-            filenames = [
+            return [
                 x
                 for x in self.storage_id.list_files(full_input_dir_pending)
                 if x.strip("/")
             ]
-            return filenames
-
         bits = [exchange_type.exchange_filename_pattern]
         if exchange_type.exchange_file_ext:
             bits.append(r"\." + exchange_type.exchange_file_ext)

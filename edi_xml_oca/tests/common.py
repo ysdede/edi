@@ -11,7 +11,7 @@ class XMLTestCaseMixin(xmlunittest.XmlTestMixin):
     def _dev_write_example_file(self, test_file, filename, content):
         from pathlib import Path
 
-        path = Path(test_file).parent / ("examples/test." + filename)
+        path = Path(test_file).parent / f"examples/test.{filename}"
         with open(path, "w") as out:
             out.write(content)
 

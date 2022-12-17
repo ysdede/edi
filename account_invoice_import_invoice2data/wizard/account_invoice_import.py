@@ -26,10 +26,9 @@ class AccountInvoiceImport(models.TransientModel):
         """This method must be inherited by additional modules with
         the same kind of logic as the account_bank_statement_import_*
         modules"""
-        res = super().fallback_parse_pdf_invoice(file_data)
-        if not res:
-            res = self.invoice2data_parse_invoice(file_data)
-        return res
+        return super().fallback_parse_pdf_invoice(
+            file_data
+        ) or self.invoice2data_parse_invoice(file_data)
 
     @api.model
     def invoice2data_parse_invoice(self, file_data):

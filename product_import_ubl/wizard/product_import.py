@@ -18,9 +18,7 @@ class XPathGetter(object):
         self._ns = namespaces
 
     def xpath(self, path):
-        # Return a list of elements
-        items = self._xpath(path, namespaces=self._ns)
-        return items
+        return self._xpath(path, namespaces=self._ns)
 
     def xpath_get(self, path):
         # Return 1 element
@@ -42,9 +40,7 @@ class ProductImport(models.TransientModel):
     @api.model
     def parse_xml_catalogue(self, xml_root, detect_doc_type=False):
         if xml_root.tag == CATALOGUE_TAG:
-            if detect_doc_type:
-                return "catalogue"
-            return self.parse_ubl_catalogue(xml_root)
+            return "catalogue" if detect_doc_type else self.parse_ubl_catalogue(xml_root)
         return super().parse_xml_catalogue(xml_root, detect_doc_type=detect_doc_type)
 
     @api.model
@@ -124,7 +120,7 @@ class ProductImport(models.TransientModel):
             self.parse_ubl_catalogue_line(line, ns)
             for line in xroot.xpath(f"/{root_name}/{line_name}")
         ]
-        res = {
+        return {
             "doc_type": doc_type,
             "date": xroot.text(f"/{root_name}/cbc:IssueDate"),
             "ref": xroot.text(f"/{root_name}/cbc:ID"),
@@ -132,4 +128,3 @@ class ProductImport(models.TransientModel):
             "seller": supplier_dict,
             "products": res_lines,
         }
-        return res

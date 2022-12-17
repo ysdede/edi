@@ -10,18 +10,17 @@ class SaleOrder(models.Model):
     def name_get(self):
         """Add amount_untaxed in name_get of sale orders"""
         res = super().name_get()
-        if self._context.get("sale_order_show_amount"):
-            new_res = []
-            for (sale_id, name) in res:
-                sale = self.browse(sale_id)
-                # I didn't find a python method to easily display
-                # a float + currency symbol (before or after)
-                # depending on lang of context and currency
-                name += _(" Amount w/o tax: %s %s)") % (
-                    sale.amount_untaxed,
-                    sale.currency_id.name,
-                )
-                new_res.append((sale_id, name))
-            return new_res
-        else:
+        if not self._context.get("sale_order_show_amount"):
             return res
+        new_res = []
+        for (sale_id, name) in res:
+            sale = self.browse(sale_id)
+            # I didn't find a python method to easily display
+            # a float + currency symbol (before or after)
+            # depending on lang of context and currency
+            name += _(" Amount w/o tax: %s %s)") % (
+                sale.amount_untaxed,
+                sale.currency_id.name,
+            )
+            new_res.append((sale_id, name))
+        return new_res

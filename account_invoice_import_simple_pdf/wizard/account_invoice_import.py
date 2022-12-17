@@ -38,19 +38,16 @@ class AccountInvoiceImport(models.TransientModel):
         """This method must be inherited by additional modules with
         the same kind of logic as the account_bank_statement_import_*
         modules"""
-        res = super().fallback_parse_pdf_invoice(file_data)
-        if not res:
-            res = self.simple_pdf_parse_invoice(file_data)
-        return res
+        return super().fallback_parse_pdf_invoice(
+            file_data
+        ) or self.simple_pdf_parse_invoice(file_data)
 
     @api.model
     def _simple_pdf_text_extraction_pymupdf(self, fileobj, test_info):
         res = False
         try:
-            pages = []
             doc = fitz.open(fileobj.name)
-            for page in doc:
-                pages.append(page.getText("text"))
+            pages = [page.getText("text") for page in doc]
             res = {
                 "all": "\n\n".join(pages),
                 "first": pages and pages[0] or "",
@@ -65,13 +62,12 @@ class AccountInvoiceImport(models.TransientModel):
     def _simple_pdf_text_extraction_pdfplumber(self, fileobj, test_info):
         res = False
         with pdfplumber.open(fileobj.name, laparams={"detect_vertical": True}) as pdf:
-            pages = []
-            for pdf_page in pdf.pages:
-                pages.append(
-                    pdf_page.extract_text(
-                        layout=True, use_text_flow=True, keep_blank_chars=True
-                    )
+            pages = [
+                pdf_page.extract_text(
+                    layout=True, use_text_flow=True, keep_blank_chars=True
                 )
+                for pdf_page in pdf.pages
+            ]
             res = {
                 "all": "\n\n".join(pages),
                 "first": pages and pages[0] or "",
@@ -212,10 +208,10 @@ class AccountInvoiceImport(models.TransientModel):
                 res[key] = regex.sub(test_info["lonely_accents"], "", text)
 
         res["all_no_space"] = regex.sub(
-            "%s+" % test_info["space_pattern"], "", res["all"]
+            f'{test_info["space_pattern"]}+', "", res["all"]
         )
         res["first_no_space"] = regex.sub(
-            "%s+" % test_info["space_pattern"], "", res["first"]
+            f'{test_info["space_pattern"]}+', "", res["first"]
         )
         fileobj.close()
         return res
@@ -259,7 +255,7 @@ class AccountInvoiceImport(models.TransientModel):
                         len(keywords),
                         ", ".join(keywords),
                     )
-                    test_results.append("<li>%s</li>" % result_label)
+                    test_results.append(f"<li>{result_label}</li>")
                     break
             for kfield, kfield_label in keyword_fields_dict.items():
                 if partner[kfield] and partner[kfield] in raw_text_no_space:
@@ -268,7 +264,7 @@ class AccountInvoiceImport(models.TransientModel):
                         label=kfield_label,
                         value=partner[kfield],
                     )
-                    test_results.append("<li>%s</li>" % result_label)
+                    test_results.append(f"<li>{result_label}</li>")
                     break
         return partner_id
 
@@ -293,7 +289,7 @@ class AccountInvoiceImport(models.TransientModel):
             8239,
             8287,
         ]
-        return "[%s]" % "".join([chr(x) for x in space_ints])
+        return f'[{"".join([chr(x) for x in space_ints])}]'
 
     @api.model
     def _get_lonely_accents(self):
@@ -306,7 +302,7 @@ class AccountInvoiceImport(models.TransientModel):
             "\u02CB",  # modifier letter grave accent
             "\u02C6",  # modifier letter circumflex accent
         ]
-        return "[%s]" % "".join(lonely_accents)
+        return f'[{"".join(lonely_accents)}]'
 
     @api.model
     def _simple_pdf_update_test_info(self, test_info):
@@ -341,8 +337,7 @@ class AccountInvoiceImport(models.TransientModel):
         raw_text_dict = self.simple_pdf_text_extraction(file_data, test_info)
         partner_id = self.simple_pdf_match_partner(raw_text_dict["all_no_space"])
         if not partner_id:
-            parsed_inv = {"chatter_msg": ["Simple PDF Import: count not find Vendor."]}
-            return parsed_inv
+            return {"chatter_msg": ["Simple PDF Import: count not find Vendor."]}
         partner = rpo.browse(partner_id)
         raw_text = (
             partner.simple_pdf_pages == "first"
@@ -364,7 +359,7 @@ class AccountInvoiceImport(models.TransientModel):
         for field in partner.simple_pdf_field_ids:
             logger.debug("Working on field %s", field.name)
             try:
-                getattr(field, "_get_%s" % field.name)(
+                getattr(field, f"_get_{field.name}")(
                     parsed_inv, raw_text, partner_config, test_info
                 )
             except AttributeError:
@@ -373,13 +368,12 @@ class AccountInvoiceImport(models.TransientModel):
                     % field.name
                 )
 
-        failed_fields = parsed_inv.pop("failed_fields")
-        if failed_fields:
+        if failed_fields := parsed_inv.pop("failed_fields"):
             parsed_inv["chatter_msg"].append(
                 _("<b>Failed</b> to extract the following field(s): %s.")
                 % ", ".join(
                     [
-                        "<b>%s</b>" % test_info["field_name_sel"][failed_field]
+                        f'<b>{test_info["field_name_sel"][failed_field]}</b>'
                         for failed_field in failed_fields
                     ]
                 )

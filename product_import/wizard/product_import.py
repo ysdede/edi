@@ -45,8 +45,7 @@ class ProductImport(models.TransientModel):
         xml_root, error_msg = self._parse_xml(filecontent)
         if error_msg:
             raise UserError(error_msg)
-        res = self.parse_xml_catalogue(xml_root, detect_doc_type=detect_doc_type)
-        return res
+        return self.parse_xml_catalogue(xml_root, detect_doc_type=detect_doc_type)
 
     def _unsupported_file_msg(self, filename):
         return {
